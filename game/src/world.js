@@ -725,11 +725,11 @@ export class World {
   buildLake() {
     const wood = { mat: 'wood', sideMat: 'graffiti', surf: SURF.WOOD };
     this.prism(0, 150, 0, World.kicker(11, 3.4, -6, 6, 1.6), 6, wood);
-    this.prism(0, 186, 0, [[-5, 3.2], [-1, 2.6], [5, 1.2], [9, 0.9]], 9, { ...wood, baseY: terrainH(0, 192) - 1.2 });
+    this.prism(0, 165, 0, [[0, 2.9], [5, 2.6], [14, 1.8], [26, 1.2]], 9, { ...wood, baseY: terrainH(0, 192) - 1.2, bottom: -6 });
     this.prism(0, 210, 0, World.kicker(10, 3.0, -5, 6, 1.6), 6, { ...wood, baseY: terrainH(0, 207) });
-    this.prism(0, 246, 0, World.landing(14, 3.2, -2), 9, wood);
-    this.coinArc(0, 150, 0, 6, 31, 3.6, 3.5, 7, 9);
-    this.coinArc(0, 210, 0, 6, 34, 3.3, 3.2, 7, 9);
+    this.prism(0, 227, 0, World.landing(22, 2.9, 0), 9, { ...wood, baseY: 0, bottom: -6 });
+    this.coinArc(0, 150, 0, 6, 21, 3.6, 3.5, 5, 7);
+    this.coinArc(0, 210, 0, 6, 22, 3.3, 3.2, 5, 7);
     // Пирс
     this.boxShape(-56, 200, Math.PI / 2, 30, 4, 1.0, { mat: 'wood', surf: SURF.WOOD, baseY: WATER_LEVEL + 0.2, bottom: -4 });
     this.prism(-41, 200, Math.PI / 2, World.kicker(4, 1.2, 0, 3), 4, { mat: 'wood', surf: SURF.WOOD, baseY: WATER_LEVEL + 1.2 });
@@ -743,7 +743,7 @@ export class World {
       this.treeSpots.push([Math.cos(a) * 76 * r, 200 + Math.sin(a) * 46 * r, 0, 'palm']);
     }
     for (let i = 0; i < 12; i++) this.spectatorSpots.push([20 + i * 2.5, 142, Math.PI / 2, 0]);
-    this.addSpot('Озеро', 0, 128, 0, '🌊', 'Прыжки через воду на остров и обратно');
+    this.addSpot('Озеро', 0, 112, 0, '🌊', 'Прыжки через воду на остров и обратно');
   }
 
   // Парковка на юго-востоке: прыжки через машины
@@ -751,13 +751,13 @@ export class World {
     this.pads.push({ x0: 116, x1: 284, z0: 116, z1: 284, surf: SURF.ASPHALT, color: '#55575c', name: 'Парковка' });
     this.B('asphalt').flatRect(116, 116, 284, 284, 0.03, 12);
     const wh = this.B('white');
-    for (const rz of [145, 180, 215, 250]) {
+    for (const rz of [143, 185, 220, 255]) {
       for (let x = 125; x <= 275; x += 3) wh.flatRect(x - 0.06, rz - 3, x + 0.06, rz + 3, 0.045, 4);
     }
     const rnd = mulberry32(4242);
-    for (const rz of [145, 180, 215, 250]) {
+    for (const rz of [143, 185, 220, 255]) {
       for (let x = 126.5; x < 275; x += 3) {
-        if (rnd() < 0.25) continue;
+        if (rnd() < 0.25 && ![150, 210, 255].some((k) => Math.abs(x - k) < 3)) continue;
         this.parked.push([x, rz + (rnd() - 0.5) * 0.3, (rnd() < 0.5 ? 0 : Math.PI) + (rnd() - 0.5) * 0.06, (rnd() * 1000) | 0]);
       }
     }
@@ -766,13 +766,13 @@ export class World {
     }
     const wood = { mat: 'wood', sideMat: 'graffiti', surf: SURF.WOOD };
     // Трамплины через ряды машин (вдоль +z)
-    for (const [x, z0] of [[150, 128], [210, 163], [255, 128]]) {
-      this.prism(x, z0, 0, World.kicker(9, 2.8, -9, 6, 1.6), 6, wood);
+    for (const [x, z0] of [[150, 135], [210, 168], [255, 135]]) {
+      this.prism(x, z0, 0, World.kicker(9, 3.2, -9, 6, 1.6), 6, wood);
       this.coinArc(x, z0, 0, 2, 22, 3.2, 1, 6, 7);
     }
-    this.prism(210, 163, 0, World.landing(12, 3, 27), 8, wood);
+    this.prism(210, 168, 0, World.landing(12, 3, 27), 8, wood);
     for (let i = 0; i < 10; i++) this.spectatorSpots.push([120, 150 + i * 6, Math.PI / 2, 0]);
-    this.addSpot('Парковка', 150, 120, 0, '🚗', 'Прыгай через ряды машин');
+    this.addSpot('Парковка', 150, 112, 0, '🚗', 'Прыгай через ряды машин');
   }
 
   buildDecor() {

@@ -10,9 +10,9 @@ const SURF_PARAMS = {
   [SURF.CONCRETE]: { drag: 0.28, vmax: 1, grip: 1 },
   [SURF.WOOD]: { drag: 0.3, vmax: 1, grip: 1 },
   [SURF.METAL]: { drag: 0.3, vmax: 1, grip: 0.95 },
-  [SURF.GRASS]: { drag: 0.9, vmax: 0.84, grip: 0.85 },
+  [SURF.GRASS]: { drag: 0.7, vmax: 0.9, grip: 0.88 },
   [SURF.DIRT]: { drag: 0.55, vmax: 0.93, grip: 0.9 },
-  [SURF.SAND]: { drag: 1.5, vmax: 0.72, grip: 0.75 },
+  [SURF.SAND]: { drag: 0.85, vmax: 0.86, grip: 0.8 },
 };
 
 const _g = { h: 0, surf: 0, shape: null };
@@ -128,7 +128,7 @@ export class Player {
       a += st.accel * inp.throttle * (1 - r * r * 0.85);
     }
     if (inp.brake > 0) {
-      if (this.speed > 0.6) a -= 17 * inp.brake * (this.w > 0.2 ? 0.4 : 1);
+      if (this.speed > 0.6) a -= inp.brake * (this.w > 0.2 ? 7 : this.s > 0.05 ? 7.5 : this.lean < -0.3 ? 11 : 17);
       else if (this.speed > -4) a -= 5 * inp.brake;
     }
     const sgn = Math.sign(this.speed);
@@ -171,7 +171,7 @@ export class Player {
     if (this.w < 0.02) {
       let sa = 0;
       const can = this.speed > 1.5 && inp.brake > 0;
-      sa += can ? leanFwd * 7.5 * inp.brake + inp.brake * clamp(this.speed / 8, 0, 1) * 3.5 : 0;
+      sa += can ? (leanFwd * 8.5 + clamp(this.speed / 6, 0, 1) * 4.5 * leanFwd) * inp.brake : 0;
       sa -= leanBack * 5;
       sa -= 10.5 * Math.cos(this.s + 0.6);
       sa -= 3 * this.sr;
@@ -179,7 +179,7 @@ export class Player {
       this.s += this.sr * dt;
       if (this.s <= 0) { this.s = 0; this.sr = 0; }
       if (this.s > 1.2) { this.crash('Через руль!', 'stoppie'); return; }
-      if (this.s > 0.1 && this.speed > 0) this.speed = Math.max(0, this.speed - 4 * dt);
+      if (assist && this.s > 0.85) { sa = 0; this.sr = Math.min(this.sr, 0); }
     }
 
     // --- Прыжок (подгрузка подвески) ---
