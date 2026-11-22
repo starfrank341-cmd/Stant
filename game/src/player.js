@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { clamp, damp, wrapAngle, lerp, smoothstep, TAU } from './util.js';
 import { SURF, WATER_LEVEL } from './world.js';
+import { isSpinTrick } from './bike.js';
 
 export const G = 14; // «лёгкая» гравитация — полёты дольше и красивее
 const HC = 0.55; // высота центра масс над линией контакта колёс
@@ -44,6 +45,10 @@ export class Player {
     };
     this.hw = def.base / 2;
     this.R = def.wheel;
+    this.motor = def.motor || 'gas';
+    // на самокате-кикборде газ не поднимает переднее колесо, на электросамокате — слабее
+    this.thrWheelie = this.motor === 'kick' ? 0 : def.kind === 'scooter' ? 0.55 : 1;
+    this.wg = def.kind === 'scooter' ? 0.62 : 1; // самокат легче поднять на заднее колесо
   }
 
   reset(x, z, yaw, y = null) {
@@ -57,6 +62,8 @@ export class Player {
     this.crashed = false; this.crashT = 0;
     this.pose = null; this.poseAmt = 0;
     this.charge = 0; this.compress = 0;
+    this.whipA = 0; this.barA = 0;
+    this.burnout = false; this.drift = false; this.donut = 0; this.thr = 0;
     this.airT = 0; this.vertAir = false;
     this.steerVis = 0;
     this.lean = 0;
@@ -98,6 +105,7 @@ export class Player {
   }
 
   update(dt, inp, settings) {
+    this.thr = inp.throttle;
     if (this.crashed) { this.crashT += dt; return; }
     if (this.grounded) this.updateGround(dt, inp, settings.assist);
     else this.updateAir(dt, inp, settings);
@@ -122,14 +130,29 @@ export class Player {
     this.lean = damp(this.lean, inp.lean, 8, dt);
     // --- Двигатель / тормоз ---
     const vmax = st.vmax * sp.vmax;
+    const as0 = Math.abs(this.speed);
+    // бёрнаут: газ + тормоз на месте; стиком можно крутить «пончик»
+    const burn = this.motor !== 'kick' && inp.throttle > 0 && inp.brake > 0 && as0 < 2.5 && this.w < 0.1 && this.s < 0.05;
+    // дрифт: тормоз + резкий поворот на скорости
+    const drift = !burn && as0 > 8 && inp.brake > 0 && Math.abs(inp.steer) > 0.55 && this.lean > -0.3 && this.w < 0.2 && this.s < 0.08;
+    this.burnout = burn; this.drift = drift;
     let a = 0;
-    if (inp.throttle > 0 && this.speed < vmax) {
-      const r = clamp(this.speed / vmax, 0, 1);
-      a += st.accel * inp.throttle * (1 - r * r * 0.85);
-    }
-    if (inp.brake > 0) {
-      if (this.speed > 0.6) a -= inp.brake * (this.w > 0.2 ? 7 : this.s > 0.05 ? 7.5 : this.lean < -0.3 ? 11 : 17);
-      else if (this.speed > -4) a -= 5 * inp.brake;
+    if (burn) {
+      this.speed = damp(this.speed, 0, 6, dt);
+      const dy = inp.steer * 2.4 * dt;
+      this.yaw -= dy;
+      this.donut += Math.abs(dy);
+    } else {
+      this.donut = 0;
+      if (inp.throttle > 0 && this.speed < vmax) {
+        const r = clamp(this.speed / vmax, 0, 1);
+        a += st.accel * inp.throttle * (1 - r * r * 0.85);
+      }
+      if (inp.brake > 0) {
+        if (drift) a -= 3.2 * inp.brake;
+        else if (this.speed > 0.6) a -= inp.brake * (this.w > 0.2 ? 7 : this.s > 0.05 ? 7.5 : this.lean < -0.3 ? 11 : 17);
+        else if (this.speed > -4) a -= 5 * inp.brake;
+      }
     }
     const sgn = Math.sign(this.speed);
     a -= sgn * (sp.drag + 0.0016 * this.speed * this.speed);
@@ -141,9 +164,9 @@ export class Player {
     if (Math.sign(this.speed) !== Math.sign(prevSpeed) && inp.brake > 0 && prevSpeed > 0) this.speed = 0;
     // --- Руление ---
     const as = Math.abs(this.speed);
-    const turn = st.turn * sp.grip * st.grip * clamp(as / 2.5, 0, 1) / (1 + as / 20) * (this.w > 0.35 ? 0.55 : 1) * (this.s > 0.2 ? 0.4 : 1);
+    const turn = st.turn * sp.grip * st.grip * clamp(as / 2.5, 0, 1) / (1 + as / 20) * (this.w > 0.35 ? 0.55 : 1) * (this.s > 0.2 ? 0.4 : 1) * (drift ? 1.9 : 1);
     // --- Позы на земле (особенно во время вилли/стоппи) ---
-    if (inp.trick && (!this.pose || this.pose === inp.trick) && (as > 1.5 || this.w > 0.2)) {
+    if (inp.trick && !isSpinTrick(inp.trick) && (!this.pose || this.pose === inp.trick) && (as > 1.5 || this.w > 0.2)) {
       this.pose = inp.trick;
       this.poseAmt = Math.min(1, this.poseAmt + dt * 4.5);
     } else if (this.pose) {
@@ -152,7 +175,7 @@ export class Player {
     }
     this.yaw -= inp.steer * turn * (1 - this.poseAmt * 0.55) * dt * (this.speed >= 0 ? 1 : -1);
     this.steerVis = damp(this.steerVis, inp.steer, 10, dt);
-    this.roll = damp(this.roll, inp.steer * clamp(as / 10, 0, 1) * 0.42, 6, dt);
+    this.roll = damp(this.roll, inp.steer * clamp(as / 10, 0, 1) * (drift ? 0.7 : 0.42), 6, dt);
 
     // --- Вилли ---
     const PHI = 0.37;
@@ -160,9 +183,10 @@ export class Player {
     const leanBack = Math.max(0, this.lean), leanFwd = Math.max(0, -this.lean);
     if (this.s < 0.02) {
       const fade = 1 - smoothstep(0.95, 1.3, this.w);
-      wa += (leanBack * 8.5 + inp.throttle * (this.speed < vmax * 0.97 ? 4.5 : 1.5)) * (assist ? 0.35 + 0.65 * fade : 1);
+      const thrW = burn ? 0 : inp.throttle * this.thrWheelie;
+      wa += (leanBack * 8.5 + thrW * (this.speed < vmax * 0.97 ? 4.5 : 1.5)) * (assist ? 0.35 + 0.65 * fade : 1);
       wa -= leanFwd * 7;
-      wa -= 10 * Math.cos(this.w + PHI);
+      wa -= 10 * this.wg * Math.cos(this.w + PHI);
       // помощь: удержание вилли около точки баланса
       if (assist && this.w > 0.98) wa -= (this.w - 0.98) * 26;
       wa -= (assist ? 4.2 : 2.8) * this.wr;
@@ -286,7 +310,10 @@ export class Player {
     this.pitchRate = this.wr * 0.6 + (popped ? 0 : clamp(this.gpRate || 0, -2, 2) * 0.3);
     this.spinRate = 0;
     this.w = 0; this.wr = 0; this.s = 0; this.sr = 0;
+    this.whipA = 0; this.barA = 0;
+    this.burnout = false; this.drift = false;
     this.jump = {
+      whips: 0, bars: 0,
       x: this.pos.x, z: this.pos.z, y0: this.baseY, maxH: 0, totalPitch: this.pitch - this.gp, totalYaw: 0,
       poses: {}, cars: new Set(), vert: this.vertAir, megaStart: false,
     };
@@ -348,8 +375,24 @@ export class Player {
     }
     this.roll = damp(this.roll, 0, 4, dt);
     this.steerVis = damp(this.steerVis, inp.steer * 0.5, 6, dt);
+    // --- Тейлвип и барспин: крутятся, пока держишь; после отпускания докручиваются до целого оборота ---
+    const spinStep = (key, id, period, cnt) => {
+      const held = inp.trick === id;
+      const rem = this[key] % TAU;
+      if (held || rem > 1e-4) {
+        const before = this[key];
+        this[key] += (TAU / period) * dt;
+        if (!held) {
+          const next = Math.ceil(before / TAU - 1e-6) * TAU;
+          if (this[key] >= next) this[key] = next;
+        }
+        J[cnt] = Math.floor(this[key] / TAU + 1e-6);
+      }
+    };
+    spinStep('whipA', 'tailwhip', 0.55, 'whips');
+    spinStep('barA', 'barspin', 0.34, 'bars');
     // --- Позы трюков ---
-    if (inp.trick && (!this.pose || this.pose === inp.trick)) {
+    if (inp.trick && !isSpinTrick(inp.trick) && (!this.pose || this.pose === inp.trick)) {
       this.pose = inp.trick;
       this.poseAmt = Math.min(1, this.poseAmt + dt * 4.5);
       if (this.poseAmt > 0.7) J.poses[this.pose] = (J.poses[this.pose] || 0) + dt;
@@ -407,7 +450,10 @@ export class Player {
       dist: Math.hypot(this.pos.x - J.x, this.pos.z - J.z),
     };
     let reason = null;
-    if (this.pose && this.poseAmt > 0.4) reason = 'Не успел в седло!';
+    const wr = this.whipA % TAU, br = this.barA % TAU;
+    if (wr > 0.35 && TAU - wr > 0.35) reason = 'Не докрутил тейлвип!';
+    else if (br > 0.5 && TAU - br > 0.5) reason = 'Не поймал руль!';
+    else if (this.pose && this.poseAmt > 0.4) reason = 'Не успел в седло!';
     else if (Math.abs(diff) > 0.62) reason = diff > 0 ? 'Упал на спину!' : 'Клюнул носом!';
     else if (hd > 0.75 && hs > 3) reason = 'Боком!';
     else if (vNormal > this.st.land) reason = 'Жёсткая посадка!';
@@ -431,6 +477,7 @@ export class Player {
     this.sr = -1;
     this.pitchRate = 0; this.spinRate = 0;
     this.pose = null; this.poseAmt = 0;
+    this.whipA = 0; this.barA = 0;
     this.compress = clamp(vNormal / this.st.land, 0.15, 1);
     this.landCool = 0.15;
     this.computeCOM(hr, hf);
@@ -461,11 +508,14 @@ export class Player {
   // Состояние для визуала
   visualState() {
     return {
-      wheelSpeed: this.grounded ? this.speed : this.speed * 0.98,
+      wheelSpeed: this.burnout ? 28 : this.grounded ? this.speed : this.speed * 0.98,
       frontSpeed: this.grounded && this.w < 0.05 ? this.speed : this.speed * 0.9,
       steerVis: this.steerVis,
       compress: this.compress,
       pose: this.poseAmt > 0.05 ? this.pose : null,
+      whip: this.crashed ? 0 : this.whipA % TAU,
+      bar: this.crashed ? 0 : this.barA % TAU,
+      kicking: this.motor === 'kick' && this.grounded && this.thr > 0 && this.speed < this.st.vmax * 0.98,
       crashed: this.crashed,
       lean: this.grounded ? this.lean + this.w * 0.8 - this.s * 0.8 : this.lean * 0.6,
       seated: this.grounded && Math.abs(this.speed) < 6 && this.w < 0.1,

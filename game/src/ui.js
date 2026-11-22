@@ -1,5 +1,5 @@
 // Интерфейс: меню, гараж, пауза, карта, задания, настройки, HUD
-import { BIKES, UPGRADES, MAX_UPG, upgCost, PALETTE, FINISHES, PAINT_PARTS, PAINT_COST } from './bike.js';
+import { BIKES, UPGRADES, MAX_UPG, upgCost, PALETTE, FINISHES, PAINT_PARTS, PAINT_COST, KIND_NAMES, upgName, TRICK_SETS, trickInfo } from './bike.js';
 import { MISSIONS } from './tricks.js';
 import { formatNum } from './util.js';
 
@@ -66,7 +66,26 @@ export class UI {
       this.renderGarage();
     }));
     $('#papply').addEventListener('click', () => this.applyPaint());
+    $('#tsetbtn').addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const s = this.save.data.settings;
+      this.setTrickSet(((s.trickSet || 0) + 1) % TRICK_SETS.length);
+      this.g.audio.click();
+    });
+    this.setTrickSet(this.save.data.settings.trickSet || 0);
     $('#preset').addEventListener('click', () => { this.revertPaint(); this.renderGarage(); });
+  }
+
+  // Набор из 4 трюков на кнопках
+  setTrickSet(i) {
+    const set = TRICK_SETS[i];
+    this.save.data.settings.trickSet = i; this.save.changed();
+    document.querySelectorAll('.cbtn.trick').forEach((b, k) => {
+      const id = set.ids[k];
+      b.dataset.k = 't:' + id;
+      b.querySelector('small').textContent = trickInfo(id).short;
+    });
+    $('#tsetbtn small').textContent = set.name;
   }
 
   updateCoins() {
@@ -163,16 +182,26 @@ export class UI {
     const def = BIKES.find((b) => b.id === viewId);
     $('#gname').innerHTML = `${def.name}<small>${def.desc}</small>`;
     if (tab === 'bikes') {
-      const max = { speed: 28 + 6, accel: 11.5 + 3, flip: 5.9 + 1.6, pop: 5.4 + 1.8 };
-      $('#tab-bikes').innerHTML = BIKES.map((b) => {
+      const max = { speed: 31 + 6, accel: 13.5 + 3, flip: 6.9 + 1.6, pop: 6 + 1.8 };
+      const kind = this.kind || def.kind;
+      this.kind = kind;
+      const chips = `<div class="chips kindchips">${Object.entries(KIND_NAMES).map(([k, n]) => `<button data-kind="${k}" class="${k === kind ? 'on' : ''}">${k === 'pit' ? '🏍️' : '🛴'} ${n}</button>`).join('')}</div>`;
+      const motorTag = (b) => (b.motor === 'electric' ? '<small>⚡ электро</small>' : b.motor === 'kick' ? '<small>🦵 толчками</small>' : '');
+      $('#tab-bikes').innerHTML = chips + BIKES.filter((b) => b.kind === kind).map((b) => {
         const own = d.bikes[b.id].owned, cur = d.current === b.id;
         const bar = (n, v, m) => `<div class="stat"><span>${n}</span><div class="sb"><i style="width:${Math.min(100, (v / m) * 100)}%"></i></div></div>`;
         const btn = cur ? '<button class="btn small" disabled>Выбран</button>'
           : own ? `<button class="btn small primary" data-sel="${b.id}">Выбрать</button>`
             : `<button class="btn small primary" data-buy="${b.id}" ${d.coins < b.price ? 'disabled' : ''}>◉ ${formatNum(b.price)}</button>`;
-        return `<div class="card ${viewId === b.id ? 'sel' : ''}" data-view="${b.id}"><h3>${b.name} ${btn}</h3>
+        return `<div class="card ${viewId === b.id ? 'sel' : ''}" data-view="${b.id}"><h3><span>${b.name}${motorTag(b)}</span> ${btn}</h3>
           ${bar('Скорость', b.stats.speed, max.speed)}${bar('Разгон', b.stats.accel, max.accel)}${bar('Сальто', b.stats.flip, max.flip)}${bar('Прыжок', b.stats.pop, max.pop)}</div>`;
       }).join('');
+      $$('#tab-bikes [data-kind]').forEach((c) => c.addEventListener('click', () => {
+        this.kind = c.dataset.kind;
+        const first = BIKES.find((b) => b.kind === this.kind && d.bikes[b.id].owned) || BIKES.find((b) => b.kind === this.kind);
+        this.g.setGarageView(first.id);
+        this.renderGarage();
+      }));
       $$('#tab-bikes [data-view]').forEach((c) => c.addEventListener('click', (e) => {
         if (e.target.closest('button')) return;
         this.g.setGarageView(c.dataset.view);
@@ -187,6 +216,7 @@ export class UI {
         this.confirm(`Купить ${def2.name} за ${formatNum(def2.price)} монет?`, () => {
           if (!this.save.spend(def2.price)) return;
           d.bikes[def2.id].owned = true; d.current = def2.id; this.save.changed();
+          this.g.tricks.stat('owned', BIKES.filter((x) => d.bikes[x.id].owned).length);
           this.g.audio.buy();
           this.g.applyBike(); this.g.setGarageView(d.current); this.renderGarage();
         });
@@ -218,7 +248,7 @@ export class UI {
         const pips = Array.from({ length: MAX_UPG }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('');
         const btn = lvl >= MAX_UPG ? '<button class="btn small" disabled>Макс.</button>'
           : `<button class="btn small primary" data-upg="${u.id}" ${d.coins < cost ? 'disabled' : ''}>◉ ${formatNum(cost)}</button>`;
-        return `<div class="card upg"><div class="info"><b>${u.name}</b><span>${u.desc}</span><div class="pips">${pips}</div></div>${btn}</div>`;
+        return `<div class="card upg"><div class="info"><b>${upgName(u, BIKES.find((b) => b.id === d.current))}</b><span>${u.desc}</span><div class="pips">${pips}</div></div>${btn}</div>`;
       }).join('');
       $$('#tab-upg [data-upg]').forEach((b) => b.addEventListener('click', () => {
         const u = UPGRADES.find((x) => x.id === b.dataset.upg);

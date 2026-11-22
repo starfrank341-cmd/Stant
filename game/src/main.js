@@ -23,7 +23,8 @@ const TIPS = [
   'Стик ВНИЗ — наклон назад: вилли на земле и бэкфлип в воздухе',
   'Стик ВВЕРХ + ТОРМОЗ — стоппи. В воздухе стик вверх — фронтфлип',
   'Зажми ПРЫЖОК и отпусти — подскок. На краю трамплина — выше!',
-  'Фиолетовые кнопки — позы: держи их на вилли (очки ×2) или в полёте',
+  'Фиолетовые кнопки — трюки: держи их на вилли (очки ×2) или в полёте. ⇄ — сменить набор трюков',
+  'Газ + тормоз на месте — бёрнаут (стиком крути пончик). Тормоз + резкий поворот на скорости — дрифт',
   'В полёте стик в стороны — вращение 360°. Камеру крути пальцем справа, 🎥 — сменить вид',
   'Приземляйся ровно на колёса — очки комбо превращаются в монеты',
   'Карта и телепорт к местам для трюков — в меню паузы ❚❚',
@@ -279,10 +280,12 @@ class Game {
 
   // Пересобрать модель байка игрока (после покупки/покраски/улучшения)
   applyBike(rebuild = true) {
+    if (this.rag) this.endRagdoll();
     const d = this.save.data;
     const def = BIKES.find((b) => b.id === d.current);
     const bk = d.bikes[def.id];
     this.player.setBike(def, bk.upg);
+    this.audio.setMotor(def.motor);
     if (rebuild || !this.bike || this.bike.def !== def) {
       if (this.bike) this.scene.remove(this.bike.group);
       this.bike = new BikeModel(this.T, def, bk.paint);
@@ -591,13 +594,17 @@ class Game {
       const rate = (soft ? 0.6 : 0.15) * (inp.throttle ? 1.4 : 0.6) * clamp(sp / 10, 0.3, 1.5) * (P.surf === SURF.GRASS ? 0.5 : 1);
       if (Math.random() < rate) this.particles.dust(rx, ry, rz, -fx * sp, -fz * sp, 1, col);
     }
-    // дым при пробуксовке на асфальте
-    if (!soft && inp.throttle && sp < 4 && Math.random() < 0.4) this.particles.dust(rx, ry, rz, -fx * 2, -fz * 2, 1, [0.85, 0.85, 0.88]);
+    // дым при пробуксовке, бёрнауте и дрифте
+    if (P.burnout || P.drift) {
+      for (let k = 0; k < (P.burnout ? 2 : 1); k++) this.particles.emit(rx + (Math.random() - 0.5) * 0.3, ry + 0.15, rz + (Math.random() - 0.5) * 0.3,
+        (Math.random() - 0.5) * 1.5 - fx * 1.5, 0.8 + Math.random(), (Math.random() - 0.5) * 1.5 - fz * 1.5, 0.7, 1.6, 0.86, 0.86, 0.9, 0.42, 2.4, -0.4);
+      this.skids.add(rx, ry, rz, P.yaw);
+    } else if (!soft && inp.throttle && sp < 4 && P.motor === 'gas' && Math.random() < 0.4) this.particles.dust(rx, ry, rz, -fx * 2, -fz * 2, 1, [0.85, 0.85, 0.88]);
     // следы торможения / стоппи / вилли
     if ((inp.brake && sp > 4) || P.s > 0.15 || (P.w > 0.3 && sp > 3) || Math.abs(P.steerVis) > 0.8 && sp > 12) {
       if (P.s > 0.15) this.skids.add(P.base.x + fx * P.hw, P.hf ?? ry, P.base.y + fz * P.hw, P.yaw);
       else this.skids.add(rx, ry, rz, P.yaw);
-    } else this.skids.break();
+    } else if (!P.burnout && !P.drift) this.skids.break();
   }
 
   updateCamera(dt, snap = false) {

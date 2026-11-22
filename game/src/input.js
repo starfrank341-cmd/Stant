@@ -55,9 +55,11 @@ export class Input {
     zone.addEventListener('lostpointercapture', end);
 
     document.querySelectorAll('.cbtn').forEach((b) => {
-      const k = b.dataset.k;
       const ids = new Set();
+      let held = null;
       const set = (on) => {
+        const k = on ? b.dataset.k : held || b.dataset.k;
+        held = on ? k : null;
         b.classList.toggle('on', on);
         if (k.startsWith('t:')) { this.trickBtn = on ? k.slice(2) : (this.trickBtn === k.slice(2) ? null : this.trickBtn); }
         else this.btn[k] = on;
@@ -105,10 +107,8 @@ export class Input {
     this.brake = this.btn.brake || K.has('ArrowDown') ? 1 : 0;
     this.jump = this.btn.jump || K.has('Space');
     let t = this.trickBtn;
-    if (K.has('Digit1')) t = 'superman';
-    if (K.has('Digit2')) t = 'cancan';
-    if (K.has('Digit3')) t = 'nohander';
-    if (K.has('Digit4')) t = 'heelclick';
+    const tb = this.trickEls || (this.trickEls = document.querySelectorAll('.cbtn.trick'));
+    ['Digit1', 'Digit2', 'Digit3', 'Digit4'].forEach((d, i) => { if (K.has(d) && tb[i]) t = tb[i].dataset.k.slice(2); });
     this.trick = t;
     if (!this.enabled) { this.steer = this.lean = this.throttle = this.brake = 0; this.jump = false; this.trick = null; }
     return this;

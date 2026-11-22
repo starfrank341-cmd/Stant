@@ -55,10 +55,29 @@ export class Audio {
     if (this.master) this.master.gain.setTargetAtTime(on ? 0.55 : 0, this.ctx.currentTime, 0.05);
   }
 
+  setMotor(m) { this.motor = m; }
+
   // Обновление мотора: speed м/с, throttle 0..1, air
   engine(speed, vmax, throttle, air, active, timeScale = 1) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
+    if (this.motor === 'electric' || this.motor === 'kick') {
+      // электро: тонкий вой, растущий со скоростью; самокат: только ветер и шуршание колёс
+      const sp = Math.abs(speed) / vmax;
+      const el = this.motor === 'electric';
+      const f = 220 + sp * 900 + throttle * 80;
+      this.o1.frequency.setTargetAtTime(f, t, 0.05);
+      this.o2.frequency.setTargetAtTime(f * 0.5, t, 0.05);
+      this.o3.frequency.setTargetAtTime(f * 2.01, t, 0.05);
+      this.lfo.frequency.setTargetAtTime(0.01, t, 0.1);
+      this.engFilter.frequency.setTargetAtTime(el ? 1800 + sp * 2500 : 300, t, 0.05);
+      this.engGain.gain.setTargetAtTime(active && el ? 0.025 + throttle * 0.04 + sp * 0.03 : 0, t, 0.08);
+      const wind = active ? clamp(sp * 0.25 + (air ? 0.12 : 0) + (!el && !air ? sp * 0.15 : 0), 0, 0.3) : 0;
+      this.windGain.gain.setTargetAtTime(wind * 0.5, t, 0.1);
+      this.windFilter.frequency.setTargetAtTime(400 + sp * 900, t, 0.1);
+      this.gear = 1;
+      return;
+    }
     const sp = Math.abs(speed) / vmax;
     // имитация коробки передач
     const gears = [0, 0.22, 0.42, 0.62, 0.82, 1.2];

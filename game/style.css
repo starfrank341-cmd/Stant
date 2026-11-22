@@ -197,3 +197,9 @@ input[type=range] { width: 180px; accent-color: var(--acc); }
 #angle.show { opacity: 1; }
 #gauge { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); width: 165px; height: 98px; }
 @media (max-height: 420px) { #cambtn { top: 120px; } #gauge { width: 140px; height: 83px; } #angle { font-size: 36px; } }
+
+.tsetbtn { position: absolute; right: calc(max(18px, env(safe-area-inset-right)) + 196px); bottom: 172px; width: 54px; height: 54px; border-radius: 16px; pointer-events: auto; touch-action: manipulation;
+  background: rgba(0, 0, 0, 0.5); border: 2px solid rgba(175, 82, 222, 0.8); color: #fff; font-size: 18px; font-weight: 900; line-height: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.tsetbtn small { font-size: 8px; font-weight: 800; margin-top: 2px; }
+.kindchips { margin-bottom: 2px; }
+.card h3 small { font-size: 11px; color: var(--acc2); font-style: normal; margin-left: 6px; }

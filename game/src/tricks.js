@@ -1,6 +1,6 @@
 // Распознавание трюков, комбо, начисление валюты и задания
 import { TAU } from './util.js';
-import { TRICK_POSES } from './bike.js';
+import { TRICK_POSES, SPIN_TRICKS } from './bike.js';
 
 export const MISSIONS = [
   { id: 'wheelie3', name: 'Вилли 3 секунды', stat: 'maxWheelie', goal: 3, reward: 300, fmt: (v) => v.toFixed(1) + ' с' },
@@ -19,6 +19,12 @@ export const MISSIONS = [
   { id: 'double', name: 'Двойной бэкфлип', stat: 'doubleFlip', goal: 1, reward: 2000 },
   { id: 'mega', name: 'Мега-прыжок на 50 м', stat: 'maxDist', goal: 50, reward: 2500, fmt: (v) => Math.round(v) + ' м' },
   { id: 'combo20k', name: 'Комбо на 20 000 очков', stat: 'maxCombo', goal: 20000, reward: 3000 },
+  { id: 'tailwhip', name: 'Тейлвип', stat: 'whips', goal: 1, reward: 1200 },
+  { id: 'barspin', name: 'Барспин', stat: 'barspins', goal: 1, reward: 800 },
+  { id: 'drift3', name: 'Дрифт 3 секунды', stat: 'maxDrift', goal: 3, reward: 700, fmt: (v) => v.toFixed(1) + ' с' },
+  { id: 'donut', name: 'Пончик 360° (бёрнаут + поворот)', stat: 'donuts', goal: 1, reward: 600 },
+  { id: 'flipwhip', name: 'Флип-вип (сальто + тейлвип)', stat: 'flipwhip', goal: 1, reward: 4000 },
+  { id: 'garage3', name: 'Собери гараж из 3 машин', stat: 'owned', goal: 3, reward: 2000 },
 ];
 
 const FLIP_PREFIX = ['', '', 'Двойной ', 'Тройной ', 'Четверной '];
@@ -32,6 +38,7 @@ export class Tricks {
     this.wheelieT = 0; this.wheelieSweet = 0; this.wheelieOffT = 0;
     this.stoppieT = 0; this.stoppieOffT = 0;
     this.gPose = null; this.gPoseT = 0; this.gPoseW = 0; this.gPoseOff = 0;
+    this.burnT = 0; this.burnOff = 0; this.donuts = 0; this.driftT = 0; this.driftOff = 0;
     this.live = '';
   }
 
@@ -69,6 +76,24 @@ export class Tricks {
   // Кадр на земле
   ground(dt, p) {
     const w = p.w, s = p.s;
+    // бёрнаут и пончики
+    if (p.burnout) {
+      this.burnT += dt; this.burnOff = 0;
+      const d = Math.floor(p.donut / TAU);
+      if (d > this.donuts) { this.donuts = d; this.add(d > 1 ? `Пончик ×${d}` : 'Пончик 360°', 400, 'ground'); this.stat('donuts', 1, 'add'); }
+      if (this.burnT > 0.5) { this.live = `Бёрнаут ${this.burnT.toFixed(1)} с`; this.comboT = Math.max(this.comboT, 1.0); }
+    } else if (this.burnT > 0) {
+      this.burnOff += dt;
+      if (this.burnOff > 0.2) this.endBurn();
+    }
+    // дрифт
+    if (p.drift) {
+      this.driftT += dt; this.driftOff = 0;
+      if (this.driftT > 0.4) { this.live = `Дрифт ${this.driftT.toFixed(1)} с`; this.comboT = Math.max(this.comboT, 1.0); }
+    } else if (this.driftT > 0) {
+      this.driftOff += dt;
+      if (this.driftOff > 0.2) this.endDrift();
+    }
     // позы на земле: на заднем/переднем колесе очки удваиваются
     if (p.pose && p.poseAmt > 0.7) {
       if (this.gPose && this.gPose !== p.pose) this.endGroundPose();
@@ -113,6 +138,15 @@ export class Tricks {
     }
   }
 
+  endBurn() {
+    if (this.burnT > 1) { this.add(`Бёрнаут ${this.burnT.toFixed(1)} с`, this.burnT * 110, 'ground'); this.stat('maxBurn', this.burnT); }
+    this.burnT = 0; this.donuts = 0; this.live = '';
+  }
+  endDrift() {
+    if (this.driftT > 0.8) { this.add(`Дрифт ${this.driftT.toFixed(1)} с`, this.driftT * 160, 'ground'); this.stat('maxDrift', this.driftT); }
+    this.driftT = 0; this.live = '';
+  }
+
   endGroundPose() {
     const t = this.gPoseT;
     const tp = TRICK_POSES.find((x) => x.id === this.gPose);
@@ -152,11 +186,15 @@ export class Tricks {
     const parts = [];
     if (flips) parts.push((FLIP_PREFIX[flips] ?? flips + 'x ') + (J.totalPitch > 0 ? 'бэкфлип' : 'фронтфлип'));
     if (spins) parts.push(spins * 360 + '°');
+    if (J.whips) parts.push(J.whips > 1 ? `Тейлвип ×${J.whips}` : 'Тейлвип');
+    if (J.bars) parts.push(J.bars > 1 ? `Барспин ×${J.bars}` : 'Барспин');
     if (p.pose) parts.push(TRICK_POSES.find((t) => t.id === p.pose).name);
     this.live = parts.join(' + ');
   }
 
   takeoff() {
+    if (this.burnT > 0) this.endBurn();
+    if (this.driftT > 0) this.endDrift();
     if (this.gPose) this.endGroundPose();
     if (this.wheelieT > 0) this.endWheelie();
     if (this.stoppieT > 0) this.endStoppie();
@@ -183,6 +221,17 @@ export class Tricks {
       this.stat('spins', 1, 'add');
     }
     if (J.vert) add('Разворот на рампе', 300);
+    if (J.whips > 0) {
+      const n = J.whips;
+      add(n === 1 ? 'Тейлвип' : n === 2 ? 'Двойной тейлвип' : `Тейлвип ×${n}`, 900 * Math.pow(n, 1.4));
+      this.stat('whips', n, 'add');
+      if (flips > 0) { add('Флип-вип!', 1500 * flips); this.stat('flipwhip', 1, 'add'); }
+    }
+    if (J.bars > 0) {
+      const n = J.bars;
+      add(n === 1 ? 'Барспин' : `Барспин ×${n}`, 600 * Math.pow(n, 1.3));
+      this.stat('barspins', n, 'add');
+    }
     for (const tp of TRICK_POSES) {
       const t = J.poses[tp.id] || 0;
       if (t > 0.2) {
@@ -218,6 +267,7 @@ export class Tricks {
     this.combo = null;
     this.wheelieT = 0; this.stoppieT = 0; this.live = '';
     this.gPose = null; this.gPoseT = 0; this.gPoseW = 0;
+    this.burnT = 0; this.driftT = 0; this.donuts = 0;
   }
 
   // Завершение комбо и начисление денег
