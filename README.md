@@ -33,3 +33,10 @@ APK собирается автоматически в GitHub Actions при к�
 - `.github/workflows/android.yml` — сборка APK.
 
 Подробнее: [docs/architecture.md](docs/architecture.md), управление — [docs/controls.md](docs/controls.md).
+
+## Скриншоты
+| | |
+|---|---|
+| ![Меню](docs/screenshots/menu.jpg) | ![Стант-парк](docs/screenshots/park.jpg) |
+| ![Мега-рампа](docs/screenshots/mega.jpg) | ![Озеро](docs/screenshots/lake.jpg) |
+| ![Гараж](docs/screenshots/garage.jpg) | ![Покраска](docs/screenshots/garage_paint.jpg) |
