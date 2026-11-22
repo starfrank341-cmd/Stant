@@ -36,8 +36,9 @@ const DUST = {
 function autoQuality() {
   const mem = navigator.deviceMemory || 4;
   const cores = navigator.hardwareConcurrency || 4;
+  const mobile = /Android|Mobile|iPhone|iPad/i.test(navigator.userAgent);
   if (mem <= 3 || cores <= 4) return 'low';
-  if (mem >= 8 && cores >= 8) return 'high';
+  if (mem >= 8 && cores >= 8 && !mobile) return 'high';
   return 'med';
 }
 
@@ -565,7 +566,7 @@ class Game {
     // направление камеры: по курсу на земле, по скорости в воздухе
     let want = P.yaw;
     if (air && hs > 2 && !P.vertAir) want = Math.atan2(P.vel.x, P.vel.z);
-    if (P.crashed) want = this.camYaw;
+    if (P.crashed || P.vertAir) want = this.camYaw;
     if (P.grounded && P.speed < -0.5) want = P.yaw;
     const yawRate = air ? 1.6 : 3.8;
     this.camYaw += wrapAngle(want - this.camYaw) * (snap ? 1 : clamp(yawRate * dt, 0, 1));

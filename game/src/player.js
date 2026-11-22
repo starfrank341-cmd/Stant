@@ -134,7 +134,7 @@ export class Player {
     const sgn = Math.sign(this.speed);
     a -= sgn * (sp.drag + 0.0016 * this.speed * this.speed);
     a -= G * Math.sin(this.gp);
-    if (this.speed > vmax) a -= (this.speed - vmax) * 1.5;
+    if (this.speed > vmax && this.gp > -0.05) a -= (this.speed - vmax) * 0.35; // разгон под горку не ограничиваем
     const prevSpeed = this.speed;
     this.speed += a * dt;
     if (inp.throttle === 0 && inp.brake === 0 && Math.abs(this.speed) < 0.35 && Math.abs(this.gp) < 0.08) this.speed = 0;

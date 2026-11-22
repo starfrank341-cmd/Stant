@@ -170,7 +170,7 @@ input[type=range] { width: 180px; accent-color: var(--acc); }
 .palette button { aspect-ratio: 1; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.2); }
 .palette button.on { border: 3px solid #fff; transform: scale(1.1); }
 .paintbar { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
-.upg { display: flex; align-items: center; gap: 10px; }
+.card.upg, .upg { display: flex; flex-direction: row; align-items: center; gap: 10px; }
 .upg .info { flex: 1; }
 .upg .info b { display: block; font-size: 15px; }
 .upg .info span { font-size: 12px; color: var(--dim); }
@@ -179,6 +179,11 @@ input[type=range] { width: 180px; accent-color: var(--acc); }
 .pips i.on { background: var(--acc2); }
 
 @media (max-height: 420px) {
+  #btns { transform: scale(0.84); transform-origin: 100% 100%; }
+  #stick { transform: scale(0.88); transform-origin: 0 100%; }
+  #tip { bottom: auto; top: 22%; }
+  #combototal { font-size: 22px; }
+  #toast { font-size: 32px; }
   .logo.big { font-size: 60px; }
   .menu-left .btn { padding: 10px 18px; font-size: 16px; }
   .menu-left { gap: 7px; padding-top: 3vh; }
