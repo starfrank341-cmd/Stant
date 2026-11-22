@@ -1,0 +1,52 @@
+plugins {
+    id 'com.android.application'
+}
+
+def versionProps = new Properties()
+file("../version.properties").withInputStream { versionProps.load(it) }
+
+android {
+    namespace 'com.stant.game'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.stant.game'
+        minSdk 26
+        targetSdk 35
+        versionCode versionProps['versionCode'].toInteger()
+        versionName versionProps['versionName']
+    }
+
+    signingConfigs {
+        // Ключ лежит в репозитории, чтобы обновления ставились поверх без удаления игры.
+        stant {
+            storeFile file('../keystore/stant.jks')
+            storePassword 'stantgame'
+            keyAlias 'stant'
+            keyPassword 'stantgame'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.stant
+        }
+        debug {
+            signingConfig signingConfigs.stant
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    androidResources {
+        noCompress += ['js', 'html', 'css']
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+}
