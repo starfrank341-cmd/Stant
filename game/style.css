@@ -71,9 +71,9 @@ h2 { margin: 0 0 6px; font-style: italic; font-weight: 900; letter-spacing: 1px;
 #combototal b { color: #fff; margin-left: 8px; }
 #live { position: absolute; top: 30%; left: 50%; transform: translateX(-50%); font-size: 26px; font-weight: 900; font-style: italic; color: #fff; text-shadow: 0 3px 8px rgba(0, 0, 0, 0.7); white-space: nowrap; }
 #toast { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-weight: 900; font-style: italic; font-size: 40px; text-align: center; white-space: nowrap; opacity: 0;
-  background: linear-gradient(180deg, #fff, #ffcf8a); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.6)); }
+  background: linear-gradient(180deg, #fff, #ffcf8a); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-stroke: 1.5px rgba(0, 0, 0, 0.45); filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 8px rgba(0, 0, 0, 0.45)); }
 #toast.show { animation: pop 1.1s ease-out forwards; }
-#toast.bad { background: linear-gradient(180deg, #fff, #ff6b6b); -webkit-background-clip: text; background-clip: text; }
+#toast.bad { background: linear-gradient(180deg, #ffd0d0, #ff3b30); -webkit-background-clip: text; background-clip: text; }
 #toast small { display: block; font-size: 18px; }
 @keyframes pop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); } 30% { transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -62%) scale(1); } }
 #bank { position: absolute; top: 18%; left: 50%; transform: translateX(-50%); font-weight: 900; font-style: italic; font-size: 30px; color: #ffd35a; opacity: 0; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8); white-space: nowrap; }

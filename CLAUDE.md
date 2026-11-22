@@ -14,3 +14,10 @@
 
 ## Язык
 Общение с пользователем и документация — на русском.
+
+## Структура проекта
+- `game/` — игра (JS + Three.js), сборка `cd game && npm ci && npm run build`.
+- `android/` — Android-обёртка (WebView). Версия — `android/version.properties` (поднимать перед выпуском).
+- APK собирает GitHub Actions (`.github/workflows/android.yml`) и сам коммитит его в `apk/` — после пуша делать `git pull`.
+- Как собирать и тестировать — скилл `.claude/skills/stant-build/SKILL.md`.
+- Документация: `docs/architecture.md`, `docs/controls.md`; идеи — `docs/ideas/roadmap.md`.
