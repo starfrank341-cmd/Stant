@@ -61,7 +61,7 @@ h2 { margin: 0 0 6px; font-style: italic; font-weight: 900; letter-spacing: 1px;
 .coins i { color: #ffc83a; font-style: normal; font-size: 18px; }
 
 /* HUD */
-#hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 12; }
 #pausebtn { position: absolute; top: 12px; left: max(14px, env(safe-area-inset-left)); width: 46px; height: 46px; border-radius: 50%; background: rgba(0, 0, 0, 0.45); font-size: 15px; pointer-events: auto; font-weight: 900; }
 .hudcoins { position: absolute; top: 15px; left: calc(max(14px, env(safe-area-inset-left)) + 58px); }
 #minimap { position: absolute; top: 10px; right: max(12px, env(safe-area-inset-right)); width: 130px; height: 130px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.4); background: rgba(0, 0, 0, 0.35); }
@@ -190,3 +190,10 @@ input[type=range] { width: 180px; accent-color: var(--acc); }
   #minimap { width: 104px; height: 104px; }
   #fps { top: 120px; }
 }
+
+#camzone { position: absolute; inset: 0; pointer-events: auto; touch-action: none; }
+#cambtn { position: absolute; top: 148px; right: max(14px, env(safe-area-inset-right)); width: 46px; height: 46px; border-radius: 50%; background: rgba(0, 0, 0, 0.45); font-size: 20px; pointer-events: auto; }
+#angle { position: absolute; top: 34%; right: 22%; font-weight: 900; font-style: italic; font-size: 46px; color: #ff3b30; text-shadow: 0 3px 0 #000, 0 0 10px rgba(0,0,0,0.6); -webkit-text-stroke: 1.5px #111; opacity: 0; transition: opacity 0.2s; }
+#angle.show { opacity: 1; }
+#gauge { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); width: 165px; height: 98px; }
+@media (max-height: 420px) { #cambtn { top: 120px; } #gauge { width: 140px; height: 83px; } #angle { font-size: 36px; } }

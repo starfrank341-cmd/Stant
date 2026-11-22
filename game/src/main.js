@@ -23,9 +23,19 @@ const TIPS = [
   'Стик ВНИЗ — наклон назад: вилли на земле и бэкфлип в воздухе',
   'Стик ВВЕРХ + ТОРМОЗ — стоппи. В воздухе стик вверх — фронтфлип',
   'Зажми ПРЫЖОК и отпусти — подскок. На краю трамплина — выше!',
-  'В полёте держи фиолетовые кнопки трюков, а стиком в стороны — вращение',
+  'Фиолетовые кнопки — позы: держи их на вилли (очки ×2) или в полёте',
+  'В полёте стик в стороны — вращение 360°. Камеру крути пальцем справа, 🎥 — сменить вид',
   'Приземляйся ровно на колёса — очки комбо превращаются в монеты',
   'Карта и телепорт к местам для трюков — в меню паузы ❚❚',
+];
+
+// Виды камеры (кнопка 🎥); палец по экрану — свободный поворот
+const CAM_MODES = [
+  { name: 'Сзади', dist: 5.4, h: 2.0, side: 0, look: 0.55, ahead: 1.4, fov: 60, speedK: 0.06, auto: true },
+  { name: 'Сбоку', dist: 4.8, h: 0.75, side: Math.PI * 0.42, look: 0.45, ahead: 0.6, fov: 52, speedK: 0.03 },
+  { name: 'Низко сзади', dist: 3.6, h: 0.65, side: 0.25, look: 0.75, ahead: 2.0, fov: 64, speedK: 0.04 },
+  { name: 'Издалека', dist: 10, h: 3.8, side: 0, look: 0.6, ahead: 1.5, fov: 55, speedK: 0.08, auto: true },
+  { name: 'Кино', dist: 7, h: 1.3, side: 0, look: 0.5, ahead: 0, fov: 50, speedK: 0.02, orbit: true },
 ];
 
 const DUST = {
@@ -119,6 +129,9 @@ class Game {
     this.camYaw = spawn.yaw;
     this.camSide = 0;
     this.menuAngle = 0;
+    this.camMode = this.save.data.settings.camMode || 0;
+    this.camOrbit = 0; this.camPitch = 0;
+    this.bindCamera();
     this.tricks = new Tricks(this.save, {
       onTrick: (n, p, c) => { this.ui.combo(c, this.tricks.mult); },
       onBank: (c, m, total, coins) => {
@@ -165,6 +178,35 @@ class Game {
     this.toMenu();
     this.last = performance.now();
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  // Поворот камеры пальцем по свободной части экрана + кнопка смены вида
+  bindCamera() {
+    const zone = document.getElementById('camzone');
+    let drag = null, lastTap = 0;
+    zone.addEventListener('pointerdown', (e) => {
+      if (drag) return;
+      zone.setPointerCapture(e.pointerId);
+      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, o: this.camOrbit, p: this.camPitch };
+      const now = performance.now();
+      if (now - lastTap < 300) { this.camOrbit = 0; this.camPitch = 0; }
+      lastTap = now;
+    });
+    zone.addEventListener('pointermove', (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      this.camOrbit = drag.o - (e.clientX - drag.x) * 0.009;
+      this.camPitch = clamp(drag.p + (e.clientY - drag.y) * 0.004, -0.12, 0.9);
+    });
+    const end = (e) => { if (drag && e.pointerId === drag.id) drag = null; };
+    zone.addEventListener('pointerup', end);
+    zone.addEventListener('pointercancel', end);
+    document.getElementById('cambtn').addEventListener('click', () => {
+      this.camMode = (this.camMode + 1) % CAM_MODES.length;
+      this.camOrbit = 0; this.camPitch = 0;
+      this.save.data.settings.camMode = this.camMode; this.save.changed();
+      this.ui.toast('КАМЕРА', CAM_MODES[this.camMode].name);
+      this.audio.click();
+    });
   }
 
   resize() {
@@ -387,7 +429,7 @@ class Game {
         if (g.shape && g.shape.isCar) P.jump.cars.add(g.shape);
       }
     }
-    const busy = !P.grounded || this.tricks.wheelieT > 0 || this.tricks.stoppieT > 0;
+    const busy = !P.grounded || this.tricks.wheelieT > 0 || this.tricks.stoppieT > 0 || this.tricks.gPose;
     this.tricks.tick(sdt, busy && !P.crashed);
     this.ui.live(this.tricks.live);
     // мир
@@ -570,12 +612,17 @@ class Game {
     if (P.grounded && P.speed < -0.5) want = P.yaw;
     const yawRate = air ? 1.6 : 3.8;
     this.camYaw += wrapAngle(want - this.camYaw) * (snap ? 1 : clamp(yawRate * dt, 0, 1));
-    // кинематографичный боковой ракурс в долгом полёте
-    const sideT = air && P.airT > 0.35 && P.heightAbove > 1.8 ? 0.75 : 0;
+    const mode = CAM_MODES[this.camMode || 0];
+    // кинематографичный боковой ракурс в долгом полёте (только вид сзади)
+    const sideT = mode.auto && air && P.airT > 0.35 && P.heightAbove > 1.8 ? 0.75 : 0;
     this.camSide = damp(this.camSide, sideT, 1.8, dt);
-    const dist = 5.4 + hs * 0.06 + this.camSide * 2.2 + (P.crashed ? 2 : 0);
-    const height = 2.05 + this.camSide * 0.5 + (P.crashed ? 1.5 : 0);
-    const a = this.camYaw + Math.PI + this.camSide;
+    if (mode.orbit) this.cinemaA = (this.cinemaA || 0) + dt * 0.3;
+    // плавное возвращение пользовательского поворота, если палец отпущен давно
+    this.camOrbitS = damp(this.camOrbitS || 0, this.camOrbit || 0, 10, dt);
+    this.camPitchS = damp(this.camPitchS || 0, this.camPitch || 0, 10, dt);
+    const dist = mode.dist + hs * mode.speedK + this.camSide * 2.2 + (P.crashed ? 2 : 0);
+    const height = mode.h + this.camSide * 0.5 + (P.crashed ? 1.5 : 0) + this.camPitchS * dist;
+    const a = this.camYaw + Math.PI + mode.side + this.camSide + this.camOrbitS + (mode.orbit ? this.cinemaA : 0);
     const desired = new THREE.Vector3(target.x + Math.sin(a) * dist, target.y + height, target.z + Math.cos(a) * dist);
     // столкновение камеры с препятствиями
     const steps = 8;
@@ -606,10 +653,11 @@ class Game {
       this.shake *= Math.exp(-6 * dt);
     }
     const fx = Math.sin(this.camYaw), fz = Math.cos(this.camYaw);
-    const look = new THREE.Vector3(target.x + fx * 1.4 * (1 - this.camSide * 0.7), target.y + 0.55, target.z + fz * 1.4 * (1 - this.camSide * 0.7));
+    const ahead = mode.ahead * (1 - this.camSide * 0.7);
+    const look = new THREE.Vector3(target.x + fx * ahead, target.y + mode.look, target.z + fz * ahead);
     if (snap) this.camLook.copy(look); else this.camLook.lerp(look, 1 - Math.exp(-14 * dt));
     cam.lookAt(this.camLook);
-    const fov = clamp(60 + hs * 0.55, 60, 80) - (1 - this.timeScale) * 8;
+    const fov = clamp(mode.fov + hs * 0.5, mode.fov, mode.fov + 18) - (1 - this.timeScale) * 8;
     if (Math.abs(cam.fov - fov) > 0.05) { cam.fov = damp(cam.fov, fov, 4, dt); cam.updateProjectionMatrix(); }
     this.sky.position.copy(cam.position);
     updateSun(this.sun, target);
@@ -622,7 +670,15 @@ class Game {
     if (this.hudT > 0.05) {
       this.hudT = 0;
       const sp = Math.round(hs * 3.6);
-      if (this._sp !== sp) { this._sp = sp; document.querySelector('#speed b').textContent = sp; }
+      if (this._sp !== sp || this._gear !== this.audio.gear) { this._sp = sp; this._gear = this.audio.gear; this.drawGauge(sp, this.audio.gear, P.st.vmax * 3.6 * 1.25); }
+      // угол вилли / стоппи
+      const ang = P.grounded && !P.crashed ? Math.round((P.w > 0.2 ? P.w : P.s > 0.2 ? -P.s : 0) * 57.3) : 0;
+      const ae = document.getElementById('angle');
+      if (ang !== this._ang) {
+        this._ang = ang;
+        ae.classList.toggle('show', ang !== 0);
+        if (ang) ae.textContent = Math.abs(ang) + '°';
+      }
       this.minimap.draw(P, this.traffic.cars);
       document.getElementById('controls').classList.toggle('air', !P.grounded && !P.crashed);
     }
@@ -630,6 +686,39 @@ class Game {
     if (Math.abs((this._vig || 0) - vig) > 0.02) { this._vig = vig; document.getElementById('vignette').style.opacity = vig.toFixed(2); }
     const sl = clamp((hs - 17) / 10, 0, 0.8);
     if (Math.abs((this._sl || 0) - sl) > 0.02) { this._sl = sl; document.getElementById('speedlines').style.opacity = sl.toFixed(2); }
+  }
+
+  // Стрелочный спидометр с передачей
+  drawGauge(sp, gear, max) {
+    const c = document.getElementById('gauge');
+    const g = c.getContext('2d');
+    const W = c.width, H = c.height, cx = W / 2, cy = H - 18, R = 92;
+    g.clearRect(0, 0, W, H);
+    const a0 = Math.PI * 0.95, a1 = Math.PI * 2.05;
+    g.lineCap = 'round';
+    g.lineWidth = 12; g.strokeStyle = 'rgba(0,0,0,0.45)';
+    g.beginPath(); g.arc(cx, cy, R, a0, a1); g.stroke();
+    const t = Math.min(1, sp / max);
+    const grad = g.createLinearGradient(cx - R, 0, cx + R, 0);
+    grad.addColorStop(0, '#ffb020'); grad.addColorStop(1, '#ff3b30');
+    g.lineWidth = 8; g.strokeStyle = grad;
+    g.beginPath(); g.arc(cx, cy, R, a0, a0 + (a1 - a0) * t); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,0.8)'; g.lineWidth = 2;
+    for (let i = 0; i <= 10; i++) {
+      const a = a0 + (a1 - a0) * (i / 10);
+      g.beginPath(); g.moveTo(cx + Math.cos(a) * (R - 16), cy + Math.sin(a) * (R - 16)); g.lineTo(cx + Math.cos(a) * (R - (i % 5 ? 10 : 22)), cy + Math.sin(a) * (R - (i % 5 ? 10 : 22))); g.stroke();
+    }
+    const a = a0 + (a1 - a0) * t;
+    g.strokeStyle = '#ff3b30'; g.lineWidth = 4;
+    g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * (R - 12), cy + Math.sin(a) * (R - 12)); g.stroke();
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(cx, cy, 6, 0, 7); g.fill();
+    g.textAlign = 'center';
+    g.font = 'italic 900 34px system-ui, sans-serif';
+    g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,0.7)';
+    g.strokeText(String(sp), cx, cy - 22); g.fillText(String(sp), cx, cy - 22);
+    g.font = 'bold 13px system-ui, sans-serif';
+    g.fillStyle = '#ffd35a';
+    g.fillText(`(${gear}) км/ч`, cx, cy + 12);
   }
 
   tips(dt) {

@@ -142,7 +142,15 @@ export class Player {
     // --- Руление ---
     const as = Math.abs(this.speed);
     const turn = st.turn * sp.grip * st.grip * clamp(as / 2.5, 0, 1) / (1 + as / 20) * (this.w > 0.35 ? 0.55 : 1) * (this.s > 0.2 ? 0.4 : 1);
-    this.yaw -= inp.steer * turn * dt * (this.speed >= 0 ? 1 : -1);
+    // --- Позы на земле (особенно во время вилли/стоппи) ---
+    if (inp.trick && (!this.pose || this.pose === inp.trick) && (as > 1.5 || this.w > 0.2)) {
+      this.pose = inp.trick;
+      this.poseAmt = Math.min(1, this.poseAmt + dt * 4.5);
+    } else if (this.pose) {
+      this.poseAmt = Math.max(0, this.poseAmt - dt * 6);
+      if (this.poseAmt <= 0) this.pose = null;
+    }
+    this.yaw -= inp.steer * turn * (1 - this.poseAmt * 0.55) * dt * (this.speed >= 0 ? 1 : -1);
     this.steerVis = damp(this.steerVis, inp.steer, 10, dt);
     this.roll = damp(this.roll, inp.steer * clamp(as / 10, 0, 1) * 0.42, 6, dt);
 

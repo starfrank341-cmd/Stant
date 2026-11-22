@@ -84,6 +84,10 @@ export class World {
     this.coinsPos = [];
     this.treeSpots = [];
     this.spectatorSpots = [];
+    this.bushSpots = [];
+    this.barriers = [];
+    this.cones = [];
+    this.towers = [];
     this.parked = []; // припаркованные машины
     this.lamps = [];
     this.rnd = mulberry32(12345);
@@ -329,6 +333,29 @@ export class World {
     }
   }
 
+  // Ряд зрителей за металлическим ограждением; face — направление «к трюкам»
+  crowdLine(x0, z0, x1, z1, face, rows = 2) {
+    const dens = this.q === 'low' ? 0.35 : this.q === 'med' ? 0.55 : 0.75;
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    const dx = (x1 - x0) / len, dz = (z1 - z0) / len;
+    const fx = Math.sin(face), fz = Math.cos(face);
+    const n = Math.max(1, Math.round(len / 2.4));
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n * len;
+      const bx = x0 + dx * t + fx * 1.0, bz = z0 + dz * t + fz * 1.0;
+      this.barriers.push([bx, bz, Math.atan2(-dz, dx)]);
+      this.boxShape(bx, bz, Math.atan2(dx, dz), 2.35, 0.12, 1.1, { invisible: true, surf: SURF.METAL });
+    }
+    for (let r = 0; r < rows; r++) {
+      const cnt = Math.round(len * dens * (r === 0 ? 1 : 0.7));
+      for (let i = 0; i < cnt; i++) {
+        const t = (i + this.rnd()) / cnt * len;
+        const off = -0.25 - r * 0.85 - this.rnd() * 0.3;
+        this.spectatorSpots.push([x0 + dx * t + fx * off, z0 + dz * t + fz * off, face, 0]);
+      }
+    }
+  }
+
   addSpot(name, x, z, yaw, icon, desc) {
     this.spots.push({ name, x, z, yaw, icon, desc });
   }
@@ -502,7 +529,10 @@ export class World {
     this.boxShape(28, -8, Math.PI / 2, 12, 2, 0.6, conc);
     // Трибуны
     this.prism(0, 80, 0, [[0, 0.6], [1.6, 0.6], [1.6, 1.2], [3.2, 1.2], [3.2, 1.8], [4.8, 1.8], [4.8, 2.4], [7, 2.4]], 44, conc);
-    for (let i = 0; i < 26; i++) this.spectatorSpots.push([-20 + i * 1.6 + this.rnd() * 0.6, 80.8 + (i % 4) * 1.6, Math.PI, 0.6 + (i % 4) * 0.6]);
+    const nb = this.q === 'low' ? 24 : 44;
+    for (let i = 0; i < nb; i++) this.spectatorSpots.push([-21 + (i / nb) * 42 + this.rnd() * 0.6, 80.8 + (i % 4) * 1.6, Math.PI, 0.6 + (i % 4) * 0.6]);
+    for (const [x, z] of [[-86, -86], [86, -86], [-86, 86], [86, 86], [-86, 40], [86, -40], [40, 86], [-40, -86]]) this.treeSpots.push([x, z, 0, 'palm']);
+    for (let i = 0; i < 8; i++) this.cones.push([-8 + i * 2.2, 66], [70 + (i % 2) * 1.5, 24 + i * 2.5]);
     this.addSpot('Стант-парк', 0, 40, Math.PI, '🛹', 'Фанбокс, кикеры, биг-эйр, квотерпайпы');
   }
 
@@ -532,7 +562,8 @@ export class World {
     for (let i = 0; i < 10; i++) {
       this.boxShape(-82 + (i % 2) * 164, -280 + i * 16, 0, 1.2, 2.4, 1.0, hay);
     }
-    for (let i = 0; i < 12; i++) this.spectatorSpots.push([-50 + i * 5, -245, 0, 0]);
+    this.crowdLine(-87, -282, -87, -134, Math.PI / 2);
+    for (let i = 0; i < 10; i++) this.cones.push([-80, -275 + i * 2], [-78 + i * 2.5, -284]);
     this.addSpot('Мотокросс', -84, -265, Math.PI / 2, '🏁', 'Столы, дабл-джампы, волны и большой прыжок');
   }
 
@@ -553,8 +584,8 @@ export class World {
     this.prism(-128, -224, Math.PI / 2, W.quarter(6, 76, 2.5, 9), 16, { mat: 'concrete', surf: SURF.CONCRETE });
     this.coinArc(-272, -224, Math.PI / 2, 74, 94, 6, 6.2, 8, 9);
     this.coinLine(-268, -251, -150, -251, 10, null);
-    for (let i = 0; i < 14; i++) this.spectatorSpots.push([-170 + i * 3, -210, Math.PI, 0]);
-    for (let i = 0; i < 10; i++) this.spectatorSpots.push([-170 + i * 3, -238, 0, 0]);
+    this.crowdLine(-180, -209, -128, -209, Math.PI);
+    this.crowdLine(-180, -240, -140, -240, 0);
     this.addSpot('Мега-рампа (старт)', -277, -224, Math.PI / 2, '🚀', 'Высота 24 м! Разгон, огромный прыжок и квотерпайп');
     this.addSpot('Холмы', -200, -160, 0, '⛰️', 'Холмистая трава для полётов');
     this.megaTop = { x: -277, z: -224, y: 24 };
@@ -632,7 +663,16 @@ export class World {
     const fb = this.B('facade' + type);
     const y0 = terrainH(x, z);
     fb.box(x, y0 + h / 2, z, sx, h, sz, col, 8, 0, { noTop: true, vScale: 7 });
+    if (h >= 10) this.B('shop').box(x, y0 + 2.1, z, sx + 0.3, 4.2, sz + 0.3, [1, 1, 1], 8, 0, { noTop: true, vScale: 4.2 });
+    // парапет по краю крыши
+    this.B('roof').box(x, y0 + h + 0.6, z - sz / 2, sx + 0.6, 0.7, 0.3, [0.85, 0.85, 0.85], 4);
+    this.B('roof').box(x, y0 + h + 0.6, z + sz / 2, sx + 0.6, 0.7, 0.3, [0.85, 0.85, 0.85], 4);
     this.B('roof').box(x, y0 + h + 0.25, z, sx + 0.6, 0.5, sz + 0.6, [1, 1, 1], 6, 0, {});
+    // кусты у стен
+    for (let i = 0; i < 2; i++) {
+      const cx = rnd() < 0.5 ? -1 : 1, cz = rnd() < 0.5 ? -1 : 1;
+      this.bushSpots.push([x + cx * (sx / 2 + 1.1) * (rnd() < 0.5 ? 1 : rnd()), z + cz * (sz / 2 + 1.1)]);
+    }
     // кондиционеры/надстройки
     const n = 1 + ((rnd() * 3) | 0);
     for (let i = 0; i < n; i++) {
@@ -694,7 +734,8 @@ export class World {
     // Ледж-манульники
     this.boxShape(220, 0, 0, 3, 16, 0.5, conc);
     this.boxShape(175, -5, 0, 3, 12, 0.5, conc);
-    for (let i = 0; i < 10; i++) this.spectatorSpots.push([186 + i * 3, -16, 0, 0]);
+    this.crowdLine(150, -57, 250, -57, 0);
+    for (const [x, z] of [[145, -5], [145, 30], [255, -5], [255, 30], [200, 55], [160, 55], [240, 55]]) this.treeSpots.push([x, z, 0, 'palm']);
     this.addSpot('Площадь', 200, -55, 0, '🏛️', '10 ступеней, банки, ледж');
   }
 
@@ -742,7 +783,8 @@ export class World {
       const r = 1.12 + this.rnd() * 0.2;
       this.treeSpots.push([Math.cos(a) * 76 * r, 200 + Math.sin(a) * 46 * r, 0, 'palm']);
     }
-    for (let i = 0; i < 12; i++) this.spectatorSpots.push([20 + i * 2.5, 142, Math.PI / 2, 0]);
+    this.crowdLine(10, 139, 44, 139, 0);
+    this.crowdLine(-44, 139, -10, 139, 0);
     this.addSpot('Озеро', 0, 112, 0, '🌊', 'Прыжки через воду на остров и обратно');
   }
 
@@ -771,7 +813,8 @@ export class World {
       this.coinArc(x, z0, 0, 2, 22, 3.2, 1, 6, 7);
     }
     this.prism(210, 168, 0, World.landing(12, 3, 27), 8, wood);
-    for (let i = 0; i < 10; i++) this.spectatorSpots.push([120, 150 + i * 6, Math.PI / 2, 0]);
+    this.crowdLine(118.5, 150, 118.5, 215, Math.PI / 2);
+    for (let i = 0; i < 12; i++) this.cones.push([145 + (i % 2) * 10, 118 + Math.floor(i / 2) * 2.5]);
     this.addSpot('Парковка', 150, 112, 0, '🚗', 'Прыгай через ряды машин');
   }
 
@@ -803,8 +846,16 @@ export class World {
       if (!free(x, z)) continue;
       // деревья группами
       if (fbm2(x / 60, z / 60, 2, 99) < 0.42 && rnd() < 0.8) continue;
-      this.treeSpots.push([x, z, terrainH(x, z) - 0.1]);
+      const palm = z > -120 && rnd() < 0.45;
+      this.treeSpots.push([x, z, terrainH(x, z) - 0.1, palm ? 'palm' : undefined]);
     }
+    // пальмы вдоль кольцевой дороги (снаружи)
+    for (let t = -300; t <= 300; t += 32) {
+      for (const [x, z] of [[t, -314], [t, 314], [-314, t], [314, t]]) this.treeSpots.push([x + (rnd() - 0.5) * 2, z + (rnd() - 0.5) * 2, 0, 'palm']);
+    }
+    // вышки ЛЭП по окраинам
+    for (let z = -390; z <= 390; z += 130) { this.towers.push([392, z, 0]); this.cyl(392, z, 2.6, 26); }
+    for (let x = 262; x >= -390; x -= 130) { this.towers.push([x, -392, Math.PI / 2]); this.cyl(x, -392, 2.6, 26); }
     for (const t of this.treeSpots) {
       if (t[2] === 0) t[2] = terrainH(t[0], t[1]) - 0.1;
       this.cyl(t[0], t[1], 0.4, 8);
@@ -845,6 +896,7 @@ export class World {
     M.facade1 = std({ map: T.facades[1], roughness: 0.8 });
     M.facade2 = std({ map: T.facades[2], roughness: 0.7 });
     M.roof = std({ map: T.roof, roughness: 0.95 });
+    M.shop = std({ map: T.shop, roughness: 0.4, metalness: 0.2 });
     M.road = std({ map: T.road, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
     M.asphalt = std({ map: T.asphalt, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
     M.sidewalk = std({ map: T.sidewalk, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });

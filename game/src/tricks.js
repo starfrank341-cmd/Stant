@@ -31,6 +31,7 @@ export class Tricks {
     this.comboT = 0;
     this.wheelieT = 0; this.wheelieSweet = 0; this.wheelieOffT = 0;
     this.stoppieT = 0; this.stoppieOffT = 0;
+    this.gPose = null; this.gPoseT = 0; this.gPoseW = 0; this.gPoseOff = 0;
     this.live = '';
   }
 
@@ -68,13 +69,30 @@ export class Tricks {
   // Кадр на земле
   ground(dt, p) {
     const w = p.w, s = p.s;
+    // позы на земле: на заднем/переднем колесе очки удваиваются
+    if (p.pose && p.poseAmt > 0.7) {
+      if (this.gPose && this.gPose !== p.pose) this.endGroundPose();
+      this.gPose = p.pose;
+      this.gPoseT += dt;
+      if (w > 0.3 || s > 0.22) this.gPoseW += dt;
+      this.gPoseOff = 0;
+      if (this.gPoseT > 0.3) {
+        const tp = TRICK_POSES.find((x) => x.id === this.gPose);
+        this.live = `${tp.name} ${this.gPoseT.toFixed(1)} с`;
+        this.comboT = Math.max(this.comboT, 1.0);
+      }
+    } else if (this.gPose) {
+      this.gPoseOff += dt;
+      if (this.gPoseOff > 0.15) this.endGroundPose();
+    }
     // вилли
     if (w > 0.3 && p.speed > 1) {
       this.wheelieT += dt;
       if (w > 0.85 && w < 1.3) this.wheelieSweet += dt;
       this.wheelieOffT = 0;
       if (this.wheelieT > 0.4) {
-        this.live = `Вилли ${this.wheelieT.toFixed(1)} с`;
+        const tp = this.gPose && TRICK_POSES.find((x) => x.id === this.gPose);
+        this.live = `Вилли ${this.wheelieT.toFixed(1)} с` + (tp ? ` + ${tp.name}` : '');
         this.comboT = Math.max(this.comboT, 1.0);
       }
     } else if (this.wheelieT > 0) {
@@ -93,6 +111,18 @@ export class Tricks {
       this.stoppieOffT += dt;
       if (this.stoppieOffT > 0.15) this.endStoppie();
     }
+  }
+
+  endGroundPose() {
+    const t = this.gPoseT;
+    const tp = TRICK_POSES.find((x) => x.id === this.gPose);
+    if (tp && t > 0.5) {
+      const onWheel = this.gPoseW > t * 0.5;
+      const pts = (tp.pts * 0.5 + t * 200) * (onWheel ? 2.2 : 1);
+      this.add(`${onWheel ? 'Вилли-' : ''}${tp.name} ${t.toFixed(1)} с`, pts, 'ground');
+      this.stat('poses', 1, 'add');
+    }
+    this.gPose = null; this.gPoseT = 0; this.gPoseW = 0; this.live = '';
   }
 
   endWheelie() {
@@ -127,6 +157,7 @@ export class Tricks {
   }
 
   takeoff() {
+    if (this.gPose) this.endGroundPose();
     if (this.wheelieT > 0) this.endWheelie();
     if (this.stoppieT > 0) this.endStoppie();
   }
@@ -186,6 +217,7 @@ export class Tricks {
     if (this.combo && this.combo.total > 0) this.hooks.onLost(this.combo);
     this.combo = null;
     this.wheelieT = 0; this.stoppieT = 0; this.live = '';
+    this.gPose = null; this.gPoseT = 0; this.gPoseW = 0;
   }
 
   // Завершение комбо и начисление денег

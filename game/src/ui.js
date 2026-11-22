@@ -196,6 +196,9 @@ export class UI {
       const bk = this.save.bike();
       if (!this.paintWork) this.paintWork = { ...bk.paint };
       const P = this.paintWork;
+      const style = P.style || 'street';
+      $('#pstyle').innerHTML = [['street', '🧢 Улица'], ['moto', '⛑️ Мото']].map(([id, n]) => `<button data-style="${id}" class="${style === id ? 'on' : ''}">${n}</button>`).join('');
+      $$('#pstyle button').forEach((b) => b.onclick = () => { P.style = b.dataset.style; this.g.previewPaint(P); this.renderGarage(); });
       $('#pparts').innerHTML = PAINT_PARTS.map((p) => `<button data-part="${p.id}" class="${p.id === this.paintPart ? 'on' : ''}">${p.name}</button>`).join('');
       $('#ppal').innerHTML = PALETTE.map((c) => `<button data-col="${c}" style="background:${c}" class="${P[this.paintPart] === c ? 'on' : ''}"></button>`).join('');
       $('#pfin').innerHTML = FINISHES.map((f) => `<button data-fin="${f.id}" class="${P.finish === f.id ? 'on' : ''}">${f.name}</button>`).join('');

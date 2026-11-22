@@ -46,14 +46,14 @@ export const PAINT_PARTS = [
   { id: 'body', name: 'Пластик' },
   { id: 'frame', name: 'Рама' },
   { id: 'rims', name: 'Диски' },
-  { id: 'suit', name: 'Костюм' },
-  { id: 'helmet', name: 'Шлем' },
+  { id: 'suit', name: 'Одежда' },
+  { id: 'helmet', name: 'Шлем/кепка' },
 ];
 export const PAINT_COST = 250;
 export const defaultPaint = (i) => [
-  { body: '#ff3b30', frame: '#1c1c1e', rims: '#ffcc00', suit: '#1c1c1e', helmet: '#ff3b30', finish: 'gloss' },
-  { body: '#ffcc00', frame: '#1c1c1e', rims: '#1c1c1e', suit: '#0a5cff', helmet: '#ffcc00', finish: 'gloss' },
-  { body: '#30b0ff', frame: '#c7c7cc', rims: '#ff2d92', suit: '#ffffff', helmet: '#30b0ff', finish: 'metal' },
+  { body: '#ff3b30', frame: '#1c1c1e', rims: '#ffcc00', suit: '#f2f2f2', helmet: '#1c1c1e', finish: 'gloss', style: 'street' },
+  { body: '#ffcc00', frame: '#1c1c1e', rims: '#1c1c1e', suit: '#0a5cff', helmet: '#ffcc00', finish: 'gloss', style: 'moto' },
+  { body: '#30b0ff', frame: '#c7c7cc', rims: '#ff2d92', suit: '#ffffff', helmet: '#30b0ff', finish: 'metal', style: 'moto' },
 ][i];
 
 // ---------- Позы райдера (в локальных координатах байка; +z вперёд, +y вверх) ----------
@@ -117,6 +117,7 @@ class Limb {
     this.a.castShadow = this.b.castShadow = true;
     parent.add(this.a, this.b);
     this.mid = new THREE.Vector3();
+    this.endP = new THREE.Vector3();
   }
   solve(A, C, hint) {
     _d.subVectors(C, A);
@@ -132,6 +133,7 @@ class Limb {
     _p.normalize();
     this.mid.copy(A).addScaledVector(_d, a).addScaledVector(_p, h);
     const end = _m.copy(A).addScaledVector(_d, d);
+    this.endP.copy(end);
     place(this.a, A, this.mid);
     place(this.b, this.mid, end);
   }
@@ -146,50 +148,78 @@ function place(mesh, A, B) {
 // ---------- Райдер ----------
 export class Rider {
   constructor(mats) {
+    this.mats = mats;
     this.group = new THREE.Group();
-    const { suit, suit2, skin, helmet, visor, boot, glove } = mats;
-    this.torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.15, 0.32, 4, 10), suit);
-    this.torso.scale.set(1.05, 1, 0.8);
-    this.torso.castShadow = true;
+    const M = mats;
+    const mk = (g, m, parent = this.group) => { const o = new THREE.Mesh(g, m); o.castShadow = true; parent.add(o); return o; };
+    this.torso = mk(new THREE.CapsuleGeometry(0.155, 0.3, 3, 10), M.suit);
+    this.torso.scale.set(1.12, 1, 0.72);
+    this.neck = mk(new THREE.CylinderGeometry(0.05, 0.06, 0.12, 8), M.skin);
+    // голова: мото-шлем
     this.head = new THREE.Group();
-    const hm = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 12), helmet);
+    this.group.add(this.head);
+    this.moto = new THREE.Group();
+    const hm = mk(new THREE.SphereGeometry(0.15, 16, 12), M.helmet, this.moto);
     hm.scale.set(1, 1.05, 1.12);
-    hm.castShadow = true;
-    const chin = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.08, 0.12), helmet);
-    chin.position.set(0, -0.08, 0.12);
-    const vis = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.07, 0.04), visor);
-    vis.position.set(0, 0.0, 0.155);
-    const peak = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 0.16), helmet);
+    mk(new THREE.BoxGeometry(0.16, 0.08, 0.12), M.helmet, this.moto).position.set(0, -0.08, 0.12);
+    mk(new THREE.BoxGeometry(0.2, 0.07, 0.04), M.visor, this.moto).position.set(0, 0.0, 0.155);
+    const peak = mk(new THREE.BoxGeometry(0.2, 0.02, 0.16), M.helmet, this.moto);
     peak.position.set(0, 0.1, 0.14); peak.rotation.x = -0.25;
-    this.head.add(hm, chin, vis, peak);
-    this.group.add(this.torso, this.head);
-    this.armL = new Limb(this.group, 0.3, 0.3, 0.055, 0.05, suit, glove);
-    this.armR = new Limb(this.group, 0.3, 0.3, 0.055, 0.05, suit, glove);
-    this.legL = new Limb(this.group, 0.42, 0.44, 0.075, 0.06, suit2, boot);
-    this.legR = new Limb(this.group, 0.42, 0.44, 0.075, 0.06, suit2, boot);
-    this.cur = null;
-    this.tmp = null;
+    // голова: уличный стиль — кепка и очки
+    this.street = new THREE.Group();
+    const hd = mk(new THREE.SphereGeometry(0.115, 14, 10), M.skin, this.street);
+    hd.scale.set(0.92, 1.08, 1.02);
+    mk(new THREE.SphereGeometry(0.122, 14, 6, 0, Math.PI * 2, 0, Math.PI * 0.5), M.helmet, this.street).position.set(0, 0.03, -0.005);
+    const visorCap = mk(new THREE.BoxGeometry(0.2, 0.014, 0.13), M.helmet, this.street);
+    visorCap.position.set(0, 0.035, -0.17); // кепка козырьком назад
+    mk(new THREE.BoxGeometry(0.19, 0.04, 0.02), M.visor, this.street).position.set(0, 0.0, 0.11);
+    mk(new THREE.BoxGeometry(0.03, 0.04, 0.04), M.skin, this.street).position.set(0, -0.025, 0.115);
+    for (const x of [-0.105, 0.105]) mk(new THREE.SphereGeometry(0.025, 6, 5), M.skin, this.street).position.set(x, -0.01, 0);
+    this.head.add(this.moto, this.street);
+    this.armL = new Limb(this.group, 0.3, 0.29, 0.056, 0.048, M.suit, M.glove);
+    this.armR = new Limb(this.group, 0.3, 0.29, 0.056, 0.048, M.suit, M.glove);
+    this.legL = new Limb(this.group, 0.42, 0.44, 0.08, 0.062, M.suit2, M.boot);
+    this.legR = new Limb(this.group, 0.42, 0.44, 0.08, 0.062, M.suit2, M.boot);
+    const handG = new THREE.SphereGeometry(0.05, 8, 6).scale(0.85, 1, 0.7);
+    this.handL = mk(handG, M.glove); this.handR = mk(handG, M.glove);
+    const shoeG = new THREE.BoxGeometry(0.1, 0.08, 0.26);
+    this.footL = mk(shoeG, M.boot); this.footR = mk(shoeG, M.boot);
+    this.setStyle('moto');
+  }
+  setStyle(style) {
+    const M = this.mats, st = style === 'street';
+    this.style = style;
+    this.moto.visible = !st; this.street.visible = st;
+    for (const a of [this.armL, this.armR]) a.b.material = st ? M.skin : M.suit;
+    for (const l of [this.legL, this.legR]) l.b.material = st ? M.skin : M.boot;
+    this.handL.material = this.handR.material = st ? M.skin : M.glove;
+    this.footL.material = this.footR.material = st ? M.shoe : M.boot;
+    this.neck.visible = st;
   }
   apply(p) {
     const hips = p.hips;
     const t = p.torso;
     const neck = _m.copy(hips).addScaledVector(t, 0.48).clone();
     place(this.torso, hips, neck);
-    this.torso.position.addScaledVector(t, 0.0);
     const side = new THREE.Vector3(1, 0, 0);
-    const shL = neck.clone().addScaledVector(side, 0.17).addScaledVector(t, -0.05);
-    const shR = neck.clone().addScaledVector(side, -0.17).addScaledVector(t, -0.05);
-    this.head.position.copy(neck).addScaledVector(t, 0.14);
-    this.head.quaternion.setFromUnitVectors(_up, t.clone().lerp(_up, 0.5).normalize());
-    // голова смотрит вперёд: наклон от корпуса
+    const shL = neck.clone().addScaledVector(side, 0.17).addScaledVector(t, -0.06);
+    const shR = neck.clone().addScaledVector(side, -0.17).addScaledVector(t, -0.06);
+    const headP = neck.clone().addScaledVector(t, 0.13);
+    this.neck.position.copy(neck).addScaledVector(t, 0.03);
+    this.neck.quaternion.setFromUnitVectors(_up, t);
+    this.head.position.copy(headP);
+    this.head.quaternion.setFromUnitVectors(_up, t.clone().lerp(_up, 0.55).normalize());
     const hpL = hips.clone().add(new THREE.Vector3(0.1, -0.02, 0));
     const hpR = hips.clone().add(new THREE.Vector3(-0.1, -0.02, 0));
     this.armL.solve(shL, p.hl, p.el);
     this.armR.solve(shR, p.hr, p.er);
     this.legL.solve(hpL, p.fl, p.kl);
     this.legR.solve(hpR, p.fr, p.kr);
+    this.handL.position.copy(this.armL.endP); this.handR.position.copy(this.armR.endP);
+    this.footL.position.copy(this.legL.endP).add(_fo); this.footR.position.copy(this.legR.endP).add(_fo);
   }
 }
+const _fo = new THREE.Vector3(0, -0.02, 0.06);
 
 // ---------- Байк ----------
 export class BikeModel {
@@ -214,10 +244,12 @@ export class BikeModel {
       visor: new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.05, metalness: 0.9 }),
       boot: new THREE.MeshStandardMaterial({ color: 0x18181a, roughness: 0.6 }),
       glove: new THREE.MeshStandardMaterial({ color: 0x222226, roughness: 0.7 }),
-      skin: new THREE.MeshStandardMaterial({ color: 0xd9a07a, roughness: 0.8 }),
+      skin: new THREE.MeshStandardMaterial({ color: 0xd9a07a, roughness: 0.7 }),
+      shoe: new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.6 }),
     };
     this.build();
     this.rider = new Rider(this.mats);
+    this.rider.setStyle(paint.style || 'street');
     this.body.add(this.rider.group);
     this.poses = makePoses(bikeDef);
     this.curPose = clonePose(this.poses.ride);
@@ -247,7 +279,9 @@ export class BikeModel {
       rim.rotation.y = Math.PI / 2;
       const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.12, 12), M.chrome);
       hub.rotation.z = Math.PI / 2;
-      g.add(tire, rim, hub);
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.42, R * 0.42, 0.006, 22), M.chrome);
+      disc.rotation.z = Math.PI / 2; disc.position.x = -0.075;
+      g.add(tire, rim, hub, disc);
       // спицы
       const sg = new THREE.CylinderGeometry(0.005, 0.005, R - 0.12, 4);
       for (let i = 0; i < 10; i++) {
@@ -273,7 +307,7 @@ export class BikeModel {
     this.fork.add(this.forkInner);
     for (const s of [-1, 1]) {
       mk(new THREE.CylinderGeometry(0.03, 0.03, 0.44, 8), M.chrome, s * 0.085, -0.22, 0, this.forkInner);
-      mk(new THREE.CylinderGeometry(0.038, 0.038, 0.4, 8), M.frame, s * 0.085, -(forkLen - 0.2), 0, this.forkInner);
+      mk(new THREE.CylinderGeometry(0.04, 0.036, 0.4, 10), M.rims, s * 0.085, -(forkLen - 0.2), 0, this.forkInner);
     }
     this.frontWheel.position.set(0, -forkLen, 0);
     this.forkInner.add(this.frontWheel);
@@ -358,6 +392,10 @@ export class BikeModel {
     M.suit2.color.set(p.suit).multiplyScalar(0.7);
     M.helmet.color.set(p.helmet); M.helmet.metalness = f.metal * 0.8; M.helmet.roughness = Math.max(0.15, f.rough);
     M.glove.color.set(p.helmet).multiplyScalar(0.4);
+    M.suit.roughness = 0.75;
+    const style = p.style || 'street';
+    if (this.rider && this.rider.style !== style) this.rider.setStyle(style);
+    if (style === 'street') { M.suit2.color.set(p.frame === '#1c1c1e' ? '#3b5b8a' : p.frame).multiplyScalar(0.85); M.suit.roughness = 0.9; }
   }
 
   // Обновление визуала: колёса, руль, подвеска, поза

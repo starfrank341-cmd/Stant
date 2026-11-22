@@ -267,6 +267,34 @@ export function makeTextures(q) {
   // --- Фасады зданий ---
   T.facades = [facadeOffice(S), facadeBrick(S), facadePlaster(S)].map((c) => toTex(c, { aniso }));
 
+  // --- Витрины первого этажа: вывеска + стекло (тайл 8 м x 4.2 м) ---
+  {
+    const W = S, H = S / 2;
+    const c = canvas(W, H);
+    const ctx = c.getContext('2d');
+    const rnd = mulberry32(241);
+    ctx.fillStyle = '#d8d2c8'; ctx.fillRect(0, 0, W, H);
+    const signs = ['#c1121f', '#1d4ed8', '#16a34a', '#f59e0b', '#7c3aed', '#0f766e', '#111827'];
+    for (let k = 0; k < 2; k++) {
+      const x0 = k * W / 2;
+      ctx.fillStyle = signs[(rnd() * signs.length) | 0];
+      ctx.fillRect(x0 + W * 0.02, H * 0.05, W * 0.46, H * 0.2);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      for (let i = 0; i < 5; i++) ctx.fillRect(x0 + W * (0.06 + i * 0.075), H * 0.1, W * 0.05, H * 0.1);
+      const g = ctx.createLinearGradient(0, H * 0.3, 0, H);
+      g.addColorStop(0, '#9fb8cc'); g.addColorStop(0.5, '#3a4f66'); g.addColorStop(1, '#1d2633');
+      ctx.fillStyle = g; ctx.fillRect(x0 + W * 0.03, H * 0.32, W * 0.44, H * 0.68);
+      ctx.fillStyle = 'rgba(255,230,170,0.35)';
+      ctx.fillRect(x0 + W * 0.05, H * 0.6, W * 0.4, H * 0.4);
+      ctx.fillStyle = '#2b2b2e';
+      ctx.fillRect(x0 + W * 0.03, H * 0.3, W * 0.44, H * 0.03);
+      ctx.fillRect(x0 + W * 0.24, H * 0.32, W * 0.015, H * 0.68);
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.beginPath(); ctx.moveTo(x0 + W * 0.05, H); ctx.lineTo(x0 + W * 0.2, H * 0.35); ctx.lineTo(x0 + W * 0.26, H * 0.35); ctx.lineTo(x0 + W * 0.1, H); ctx.fill();
+    }
+    T.shop = toTex(c, { aniso });
+  }
+
   // --- Крыша ---
   {
     const c = canvas(S / 2);
@@ -342,6 +370,67 @@ export function makeTextures(q) {
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
     T.blob = toTex(c, { repeat: false });
+  }
+
+  // --- Листва (кластер листьев с альфой) ---
+  {
+    const N = q === 'low' ? 128 : 256;
+    const c = canvas(N);
+    const ctx = c.getContext('2d');
+    const rnd = mulberry32(401);
+    for (let i = 0; i < N * 1.6; i++) {
+      const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * N * 0.46;
+      const x = N / 2 + Math.cos(a) * r, y = N / 2 + Math.sin(a) * r * 0.9;
+      const shade = 0.55 + (1 - r / (N * 0.46)) * 0.25 + rnd() * 0.25;
+      const g = 110 + rnd() * 60;
+      ctx.fillStyle = `rgb(${(g * 0.55 * shade) | 0},${(g * shade) | 0},${(g * 0.32 * shade) | 0})`;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(rnd() * 6.28);
+      ctx.beginPath(); ctx.ellipse(0, 0, N / 40 + rnd() * N / 50, N / 90 + rnd() * N / 120, 0, 0, 7); ctx.fill();
+      ctx.restore();
+    }
+    T.leaves = toTex(c, { repeat: false, aniso: 1 });
+  }
+  // --- Пальмовый лист: центральная жилка и листочки ---
+  {
+    const W = q === 'low' ? 256 : 512, H = W / 4;
+    const c = canvas(W, H);
+    const ctx = c.getContext('2d');
+    const rnd = mulberry32(411);
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 46; i++) {
+      const t = i / 46;
+      const x = W * (0.04 + t * 0.94);
+      const len = H * 0.48 * Math.sin(Math.PI * Math.min(1, t * 1.15 + 0.08)) * (0.85 + rnd() * 0.25);
+      for (const sg of [-1, 1]) {
+        const g = 95 + rnd() * 50;
+        ctx.strokeStyle = `rgb(${(g * 0.6) | 0},${g | 0},${(g * 0.3) | 0})`;
+        ctx.lineWidth = W / 120;
+        ctx.beginPath(); ctx.moveTo(x, H / 2);
+        ctx.quadraticCurveTo(x + len * 0.3, H / 2 + sg * len * 0.5, x + len * 0.55, H / 2 + sg * len);
+        ctx.stroke();
+      }
+    }
+    ctx.strokeStyle = '#7a7a3a'; ctx.lineWidth = W / 110;
+    ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
+    T.frond = toTex(c, { repeat: false, aniso: 2 });
+  }
+  // --- Кора: дерево и пальма ---
+  {
+    const c = canvas(128);
+    pixels(c, (u, v) => {
+      const n = tileFbm(u * 4, v * 16, 4, 4, 421);
+      const b = 70 + n * 50;
+      return [b * 1.05, b * 0.82, b * 0.62];
+    });
+    T.bark = toTex(c, { aniso: 1 });
+    const c2 = canvas(128);
+    pixels(c2, (u, v) => {
+      const ring = Math.pow(Math.abs(Math.sin(v * Math.PI * 6)), 0.4);
+      const n = tileFbm(u * 8, v * 8, 8, 3, 431);
+      const b = 95 + n * 40 - (1 - ring) * 45;
+      return [b * 1.08, b * 0.92, b * 0.72];
+    });
+    T.palmBark = toTex(c2, { aniso: 1 });
   }
 
   // --- Граффити для рамп ---

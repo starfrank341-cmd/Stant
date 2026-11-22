@@ -36,13 +36,15 @@
 <!-- HUD -->
 <div id="hud" class="hidden">
   <button id="pausebtn" class="round" aria-label="Пауза">❚❚</button>
+  <button id="cambtn" class="round" aria-label="Камера">🎥</button>
+  <div id="angle"></div>
+  <canvas id="gauge" width="220" height="130"></canvas>
   <div class="coins hudcoins"><i>◉</i><b class="coinval">0</b></div>
   <canvas id="minimap" width="200" height="200"></canvas>
   <div id="combo"><div id="combolist"></div><div id="combototal"></div></div>
   <div id="live"></div>
   <div id="toast"></div>
   <div id="bank"></div>
-  <div id="speed"><b>0</b><span>км/ч</span></div>
   <div id="fps"></div>
   <div id="vignette"></div>
   <div id="speedlines"></div>
@@ -51,6 +53,7 @@
 
 <!-- Управление -->
 <div id="controls" class="hidden">
+  <div id="camzone"></div>
   <div id="stickzone"><div id="stick"><div id="knob"></div></div><div class="stick-label">руль / наклон</div></div>
   <div id="btns">
     <button class="cbtn gas" data-k="gas">ГАЗ</button>
@@ -120,6 +123,7 @@
     <div class="tabs"><button data-tab="bikes" class="on">Байки</button><button data-tab="paint">Покраска</button><button data-tab="upg">Улучшения</button></div>
     <div class="tab" id="tab-bikes"></div>
     <div class="tab hidden" id="tab-paint">
+      <div class="chips" id="pstyle"></div>
       <div class="chips" id="pparts"></div>
       <div class="palette" id="ppal"></div>
       <div class="chips" id="pfin"></div>
