@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#111114">
+<title>STANT</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<!-- Загрузка -->
+<div id="loading" class="screen show">
+  <div class="logo">STANT<span>питбайк стант</span></div>
+  <div class="bar"><div id="loadbar"></div></div>
+  <div id="loadtext">Загрузка...</div>
+</div>
+
+<!-- Поворот -->
+<div id="rotate">↻ Поверните телефон горизонтально</div>
+
+<!-- Главное меню -->
+<div id="menu" class="screen">
+  <div class="topbar"><div class="coins"><i>◉</i><b class="coinval">0</b></div></div>
+  <div class="menu-left">
+    <div class="logo big">STANT<span>питбайк стант</span></div>
+    <button class="btn primary" data-act="play">ИГРАТЬ</button>
+    <button class="btn" data-act="garage">ГАРАЖ</button>
+    <button class="btn" data-act="missions">ЗАДАНИЯ <em class="mcount"></em></button>
+    <button class="btn" data-act="settings">НАСТРОЙКИ</button>
+  </div>
+  <div class="menu-hint">Выполняй трюки, собирай монеты, улучшай и крась свой питбайк</div>
+</div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <button id="pausebtn" class="round" aria-label="Пауза">❚❚</button>
+  <button id="cambtn" class="round" aria-label="Камера">🎥</button>
+  <div id="angle"></div>
+  <canvas id="gauge" width="220" height="130"></canvas>
+  <div class="coins hudcoins"><i>◉</i><b class="coinval">0</b></div>
+  <canvas id="minimap" width="200" height="200"></canvas>
+  <div id="combo"><div id="combolist"></div><div id="combototal"></div></div>
+  <div id="live"></div>
+  <div id="toast"></div>
+  <div id="bank"></div>
+  <div id="fps"></div>
+  <div id="vignette"></div>
+  <div id="speedlines"></div>
+  <div id="tip"></div>
+</div>
+
+<!-- Управление -->
+<div id="controls" class="hidden">
+  <div id="camzone"></div>
+  <div id="stickzone"><div id="stick"><div id="knob"></div></div><div class="stick-label">руль / наклон</div></div>
+  <div id="btns">
+    <button class="cbtn gas" data-k="gas">ГАЗ</button>
+    <button class="cbtn brake" data-k="brake">ТОРМ</button>
+    <button class="cbtn jump" data-k="jump">ПРЫЖОК</button>
+    <button class="cbtn trick t1" data-k="t:superman"><small>Супермен</small></button>
+    <button class="cbtn trick t2" data-k="t:cancan"><small>Кан-кан</small></button>
+    <button class="cbtn trick t3" data-k="t:nohander"><small>Без рук</small></button>
+    <button class="cbtn trick t4" data-k="t:heelclick"><small>Хил-клик</small></button>
+    <button id="tsetbtn" class="tsetbtn">⇄<small>Классика</small></button>
+  </div>
+</div>
+
+<!-- Пауза -->
+<div id="pause" class="screen">
+  <div class="panel center">
+    <h2>ПАУЗА</h2>
+    <button class="btn primary" data-act="resume">ПРОДОЛЖИТЬ</button>
+    <button class="btn" data-act="map">КАРТА И ТЕЛЕПОРТ</button>
+    <button class="btn" data-act="missions">ЗАДАНИЯ</button>
+    <button class="btn" data-act="garage">ГАРАЖ</button>
+    <button class="btn" data-act="settings">НАСТРОЙКИ</button>
+    <button class="btn ghost" data-act="tomenu">В ГЛАВНОЕ МЕНЮ</button>
+  </div>
+</div>
+
+<!-- Карта -->
+<div id="map" class="screen">
+  <div class="mapwrap"><canvas id="bigmap" width="720" height="720"></canvas><div id="spots"></div></div>
+  <div class="mapside">
+    <h2>КАРТА</h2>
+    <p>Нажми на точку, чтобы переместиться к месту для трюков.</p>
+    <div id="spotlist"></div>
+    <button class="btn ghost" data-act="back">НАЗАД</button>
+  </div>
+</div>
+
+<!-- Задания -->
+<div id="missions" class="screen">
+  <div class="panel wide">
+    <h2>ЗАДАНИЯ</h2>
+    <div id="mlist"></div>
+    <button class="btn ghost" data-act="back">НАЗАД</button>
+  </div>
+</div>
+
+<!-- Настройки -->
+<div id="settings" class="screen">
+  <div class="panel wide">
+    <h2>НАСТРОЙКИ</h2>
+    <div class="row"><span>Графика</span><div class="seg" id="sq">
+      <button data-v="auto">Авто</button><button data-v="low">Низкая</button><button data-v="med">Средняя</button><button data-v="high">Высокая</button></div></div>
+    <div class="row"><span>Звук</span><button class="toggle" id="ssound"></button></div>
+    <div class="row"><span>Замедление на трюках</span><button class="toggle" id="sslowmo"></button></div>
+    <div class="row"><span>Помощь в воздухе</span><button class="toggle" id="sassist"></button></div>
+    <div class="row"><span>Показывать FPS</span><button class="toggle" id="sfps"></button></div>
+    <div class="row"><span>Чувствительность стика</span><input type="range" id="ssens" min="0.6" max="1.6" step="0.05"></div>
+    <div class="row"><span>Прогресс</span><button class="btn small danger" id="sreset">Сбросить</button></div>
+    <p class="note" id="qnote"></p>
+    <button class="btn ghost" data-act="back">НАЗАД</button>
+  </div>
+</div>
+
+<!-- Гараж -->
+<div id="garage" class="screen">
+  <div class="topbar"><button class="btn ghost small" data-act="back">← НАЗАД</button><h2>ГАРАЖ</h2><div class="coins"><i>◉</i><b class="coinval">0</b></div></div>
+  <div class="gpanel">
+    <div class="tabs"><button data-tab="bikes" class="on">Байки</button><button data-tab="paint">Покраска</button><button data-tab="upg">Улучшения</button></div>
+    <div class="tab" id="tab-bikes"></div>
+    <div class="tab hidden" id="tab-paint">
+      <div class="chips" id="pstyle"></div>
+      <div class="chips" id="pparts"></div>
+      <div class="palette" id="ppal"></div>
+      <div class="chips" id="pfin"></div>
+      <div class="paintbar"><button class="btn primary small" id="papply">Применить</button><button class="btn ghost small" id="preset">Отмена</button></div>
+    </div>
+    <div class="tab hidden" id="tab-upg"></div>
+  </div>
+  <div class="gname" id="gname"></div>
+</div>
+
+<div id="confirm" class="screen"><div class="panel center"><p id="ctext"></p><button class="btn primary" id="cyes">Да</button><button class="btn ghost" id="cno">Нет</button></div></div>
+
+<script src="game.js"></script>
+</body>
+</html>

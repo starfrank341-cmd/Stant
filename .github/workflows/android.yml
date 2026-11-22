@@ -1,0 +1,75 @@
+name: Build APK
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'game/**'
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Сборка игры (JS)
+        working-directory: game
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Сборка APK
+        working-directory: android
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Копирование APK в apk/
+        id: apk
+        run: |
+          VER=$(grep versionName android/version.properties | cut -d= -f2)
+          DATE=$(date -u +%Y-%m-%d)
+          mkdir -p apk
+          rm -f apk/stant-${VER}-*.apk
+          cp android/app/build/outputs/apk/release/app-release.apk apk/stant-${VER}-${DATE}.apk
+          cp android/app/build/outputs/apk/release/app-release.apk apk/stant-latest.apk
+          echo "name=stant-${VER}-${DATE}.apk" >> $GITHUB_OUTPUT
+          ls -la apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: apk/${{ steps.apk.outputs.name }}
+
+      - name: Коммит APK в репозиторий
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apk/
+          if git diff --cached --quiet; then echo "Нет изменений"; exit 0; fi
+          git commit -m "APK: ${{ steps.apk.outputs.name }} [skip ci]"
+          for i in 1 2 3 4; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && break
+            sleep $((i * 5))
+          done
